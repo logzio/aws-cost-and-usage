@@ -1,0 +1,8 @@
+account:
+  logzio_url: https://listener.logz.io:8071
+  logzio_token: 123456789s
+
+bucket:
+  bucket_name: logzio_billing_test
+  report_name: test-billing-report
+  report_path: prefix/test-billing-report/
