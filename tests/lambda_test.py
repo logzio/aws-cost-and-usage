@@ -7,11 +7,13 @@ import json
 import logging
 import src.lambda_function as worker
 import unittest
+import urllib2
 import utils
 import yaml
 
 from csv import DictReader
 from logging.config import fileConfig
+
 
 # create logger assuming running from ./run script
 fileConfig('tests/logging_config.ini')
@@ -269,13 +271,24 @@ class TestLambdaFunction(unittest.TestCase):
 
     @httpretty.activate
     def test_retry_sending(self):
-        httpretty.register_uri(httpretty.POST, self._logzio_url, status=500)
+        httpretty.register_uri(httpretty.POST, self._logzio_url, status=405)
 
         # send csv info to our mock server
         with gzip.open(SAMPLE_CSV_GZIP_1) as f:
             csv_lines = f.read().decode('utf-8').splitlines(True)
             event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             with self.assertRaises(worker.MaxRetriesException):
+                worker._parse_file(csv_lines, self._logzio_url, event_time)
+
+    @httpretty.activate
+    def test_bad_url(self):
+        httpretty.register_uri(httpretty.POST, self._logzio_url, status=404)
+
+        # send csv info to our mock server
+        with gzip.open(SAMPLE_CSV_GZIP_1) as f:
+            csv_lines = f.read().decode('utf-8').splitlines(True)
+            event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            with self.assertRaises(worker.UnknownURL):
                 worker._parse_file(csv_lines, self._logzio_url, event_time)
 
 

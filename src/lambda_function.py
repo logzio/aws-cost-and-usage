@@ -33,6 +33,10 @@ class BadConfigurationFile(Exception):
     pass
 
 
+class UnknownURL(Exception):
+    pass
+
+
 class BulkHTTPRequest(object):
     MAX_BULK_SIZE_IN_BYTES = 1 * 1024 * 1024
 
@@ -74,7 +78,6 @@ class BulkHTTPRequest(object):
                     logger.info("Failure in sending logs - Trying again in {} seconds"
                                 .format(sleep_between_retries))
                     time.sleep(sleep_between_retries)
-
                 try:
                     res = func()
                 except urllib2.HTTPError as e:
@@ -83,10 +86,14 @@ class BulkHTTPRequest(object):
                         raise BadLogsException(e.reason)
                     elif status_code == 401:
                         raise UnauthorizedAccessException()
+                    elif status_code == 404:
+                        raise UnknownURL()
+                    else:
+                        logger.error("Unknown HTTP exception: {}".format(e))
+                        continue
                 except urllib2.URLError:
-                    pass
-                else:
-                    return res
+                    raise
+                return res
 
             raise MaxRetriesException()
 
@@ -112,6 +119,12 @@ class BulkHTTPRequest(object):
         except UnauthorizedAccessException:
             logger.error("You are not authorized with Logz.io! Token OK? dropping logs...")
             raise UnauthorizedAccessException()
+        except UnknownURL:
+            logger.error("Please check your url...")
+            raise UnknownURL()
+        except urllib2.HTTPError as e:
+            logger.error("Unexpected error while trying to send logs: {}".format(e))
+            raise
 
 
 def _download_csv_object(obj):
@@ -202,6 +215,7 @@ def _validate_event(event):
     return env_var, event_time
 
 
+# TODO - verify connection
 def lambda_handler(event, context):
     # type: (dict, dict) -> None
     try:
