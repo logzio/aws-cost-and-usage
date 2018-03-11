@@ -215,7 +215,6 @@ def _validate_event(event):
     return env_var, event_time
 
 
-# TODO - verify connection
 def lambda_handler(event, context):
     # type: (dict, dict) -> None
     try:

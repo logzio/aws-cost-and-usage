@@ -7,7 +7,6 @@ import json
 import logging
 import src.lambda_function as worker
 import unittest
-import urllib2
 import utils
 import yaml
 
@@ -223,7 +222,7 @@ class TestLambdaFunction(unittest.TestCase):
             "time": event_time
         }
         with self.assertRaises(IOError):
-            worker.lambda_handler(event, None)
+            worker.lambda_handler(event, {})
 
     def test_no_report(self):
         event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -245,7 +244,7 @@ class TestLambdaFunction(unittest.TestCase):
             "time": event_time
         }
         with self.assertRaises(s3client.exceptions.NoSuchKey):
-            worker.lambda_handler(event, None)
+            worker.lambda_handler(event, {})
 
     @httpretty.activate
     def test_bad_logs(self):
