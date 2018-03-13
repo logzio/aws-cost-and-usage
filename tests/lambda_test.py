@@ -12,6 +12,7 @@ import yaml
 
 from csv import DictReader
 from logging.config import fileConfig
+from src.shipper import BadLogsException, UnknownURL, UnauthorizedAccessException, MaxRetriesException
 
 
 # create logger assuming running from ./run script
@@ -254,7 +255,7 @@ class TestLambdaFunction(unittest.TestCase):
         with gzip.open(SAMPLE_CSV_GZIP_1) as f:
             csv_lines = f.read().decode('utf-8').splitlines(True)
             event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            with self.assertRaises(worker.BadLogsException):
+            with self.assertRaises(BadLogsException):
                 worker._parse_file(csv_lines, self._logzio_url, event_time)
 
     @httpretty.activate
@@ -265,7 +266,7 @@ class TestLambdaFunction(unittest.TestCase):
         with gzip.open(SAMPLE_CSV_GZIP_1) as f:
             csv_lines = f.read().decode('utf-8').splitlines(True)
             event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            with self.assertRaises(worker.UnauthorizedAccessException):
+            with self.assertRaises(UnauthorizedAccessException):
                 worker._parse_file(csv_lines, self._logzio_url, event_time)
 
     @httpretty.activate
@@ -276,7 +277,7 @@ class TestLambdaFunction(unittest.TestCase):
         with gzip.open(SAMPLE_CSV_GZIP_1) as f:
             csv_lines = f.read().decode('utf-8').splitlines(True)
             event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            with self.assertRaises(worker.MaxRetriesException):
+            with self.assertRaises(MaxRetriesException):
                 worker._parse_file(csv_lines, self._logzio_url, event_time)
 
     @httpretty.activate
@@ -287,7 +288,7 @@ class TestLambdaFunction(unittest.TestCase):
         with gzip.open(SAMPLE_CSV_GZIP_1) as f:
             csv_lines = f.read().decode('utf-8').splitlines(True)
             event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            with self.assertRaises(worker.UnknownURL):
+            with self.assertRaises(UnknownURL):
                 worker._parse_file(csv_lines, self._logzio_url, event_time)
 
 
