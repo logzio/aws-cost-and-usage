@@ -44,7 +44,7 @@ are not sure how to do it, you can check this post(TODO - add link).
   - S3_BUCKET_NAME: *See below picture where can you take it from* 
 5. In the Basic Settings section, we recommend to start by setting memory to 1024(MB) and a 5(MIN) timeout, and then subsequently adjusting these values based on trial and error, and according to your Lambda usage.
 6. Leave the other settings as default
-![Alt text](report_fields.jpg?raw=true)
+![Alt text](report_fields.png?raw=true)
 
 ## Step 3 - Setting scheduling trigger
 1. Under Add triggers at the top of the page, select the CloudWatch event trigger.
@@ -55,16 +55,5 @@ We recommend to start with 10 hour rate: `rate(10 hours)`
 4. Click **Add** to add the trigger and **Save** at the top of the page to save all your configurations.
 
 [here]: https://support.logz.io/hc/en-us/articles/210205985-Which-log-types-are-preconfigured-on-the-Logz-io-platform-
-
-
-    
-    
-    
-    
-    
-    
-    
-    
-    
     
     
