@@ -72,7 +72,6 @@ def _parse_file(csv_lines, logzio_url, event_time):
         row['uuid'] = "billing_report_{}".format(event_time)
         for header, tab in row.items():
             if not tab:
-                logger.info("header - {} - tab - {}".format(header, tab))
                 del row[header]
             elif header in fields_parser:
                 row[header] = fields_parser[header][0](tab)
