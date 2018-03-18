@@ -33,18 +33,49 @@ def _download_object(obj, is_csv):
     return _download_csv_object(obj) if is_csv else _download_manifest_file(obj)
 
 
+def _parse_float(s):
+    try:
+        return float(s)
+    except ValueError:
+        return s
+
+
+def _parse_int(s):
+    try:
+        return int(s)
+    except ValueError:
+        return s
+
+
+def get_fields_parser():
+    # type: (None) -> dict
+    return {
+        "bill_PayerAccountId": (_parse_int, int),
+        "lineItem_UsageAmount": (_parse_float, float),
+        "lineItem_BlendedRate": (_parse_float, float),
+        "lineItem_BlendedCost": (_parse_float, float),
+        "lineItem_UnBlendedRate": (_parse_float, float),
+        "lineItem_UnBlendedCost": (_parse_float, float),
+        "pricing_publicOnDemandCost": (_parse_float, float),
+        "pricing_publicOnDemandRate": (_parse_float, float),
+    }
+
+
 def _parse_file(csv_lines, logzio_url, event_time):
     # type: (list[str], str, str) -> None
     reader = DictReader(csv_lines, delimiter=',')
     reader.fieldnames = [header.replace('/', '_') for header in reader.fieldnames]
     shipper = LogzioShipper(logzio_url)
+    fields_parser = get_fields_parser()
     for row in reader:
         row['@timestamp'] = event_time
         row['uuid'] = "billing_report_{}".format(event_time)
-
-        empty_keys = [k for k, v in row.iteritems() if not v]
-        for k in empty_keys:
-            del row[k]
+        for header, tab in row.items():
+            if not tab:
+                logger.info("header - {} - tab - {}".format(header, tab))
+                del row[header]
+            elif header in fields_parser:
+                row[header] = fields_parser[header][0](tab)
 
         shipper.add(row)
 
