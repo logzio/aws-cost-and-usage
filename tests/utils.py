@@ -115,7 +115,7 @@ def get_months_range():
 
 
 def verify_requests(csv_readers, requests):
-    csvs_row_count, req_row_count = 0, 0
+    csvs_row_count, csvs_col_count, req_row_count = 0, 0, 0
     headers = set()
     headers.update(["@timestamp", "uuid"])
     fields_parser = get_fields_parser()
@@ -139,8 +139,8 @@ def verify_requests(csv_readers, requests):
                 # type is the correct one
                 elif key in fields_parser:
                     if type(value) != fields_parser[key][1]:
-                        logger.error("Unexpected type: {} - {} vs. {}"
-                                     .format(value, type(value), fields_parser[key][1]))
+                        logger.error("Unexpected type: {} - {} - {} vs. {}"
+                                     .format(key, value, type(value), fields_parser[key][1]))
                         return False
                 # unicode
                 else:
@@ -153,6 +153,7 @@ def verify_requests(csv_readers, requests):
         logger.error("expected {} rows vs. {} rows sent".format(csvs_row_count, req_row_count))
         return False
 
+    logger.info("csvs_row_count {} vs. req_row_count {}".format(csvs_row_count, req_row_count))
     return True
 
 

@@ -1,11 +1,13 @@
-import os
 import boto3
+import csv
 import datetime
 import gzip
 import httpretty
 import json
 import logging
+import os
 import src.lambda_function as worker
+import src.shipper as shipper
 import unittest
 import utils
 import yaml
@@ -13,6 +15,7 @@ import yaml
 from csv import DictReader
 from logging.config import fileConfig
 from src.shipper import BadLogsException, UnknownURL, UnauthorizedAccessException, MaxRetriesException
+from zlib import error as zlib_error
 
 
 # create logger assuming running from ./run script
@@ -139,7 +142,13 @@ class TestLambdaFunction(unittest.TestCase):
         with gzip.open(SAMPLE_CSV_GZIP_1) as f:
             csv_lines = f.read().decode('utf-8').splitlines(True)
             event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            worker._parse_file(csv_lines, self._logzio_url, event_time)
+            ship = shipper.LogzioShipper(self._logzio_url)
+            r = csv.reader(csv_lines, delimiter=',')
+            tmp_headers = r.next()
+            headers = [header.replace('/', '_') for header in tmp_headers]
+            for row in r:
+                ship.add(worker._parse_file(headers, row, event_time))
+            ship.flush()
 
             reader = DictReader(csv_lines)
             self.assertTrue(utils.verify_requests([reader], httpretty.HTTPretty.latest_requests),
@@ -178,23 +187,34 @@ class TestLambdaFunction(unittest.TestCase):
         latest_csv_keys = worker._latest_csv_keys(s3client, env_var, event_time)
         readers = []
 
+        ship = shipper.LogzioShipper(self._logzio_url)
         # first csv
         csv_like_obj1 = s3client.get_object(Bucket=env_var['bucket'], Key=latest_csv_keys[0])
-        csv_obj1 = worker._download_object(csv_like_obj1, True)
-        csv_lines1 = csv_obj1.splitlines(True)
-        readers.append(DictReader(csv_lines1))
+        gen1 = worker.CSVLineGenerator(csv_like_obj1['Body'])
+        csv_lines1 = gen1.headers
+        for line in gen1.stream_line():
+            csv_lines1 += line
+        readers.append(DictReader(csv_lines1.splitlines(True)))
 
         # second csv
         csv_like_obj2 = s3client.get_object(Bucket=env_var['bucket'], Key=latest_csv_keys[1])
-        csv_obj2 = worker._download_object(csv_like_obj2, True)
-        csv_lines2 = csv_obj2.splitlines(True)
-        readers.append(DictReader(csv_lines2))
+        gen2 = worker.CSVLineGenerator(csv_like_obj2['Body'])
+        csv_lines2 = gen2.headers
+        for line in gen2.stream_line():
+            csv_lines2 += line
+        readers.append(DictReader(csv_lines2.splitlines(True)))
 
         # now we can use http mock
         httpretty.register_uri(httpretty.POST, self._logzio_url)
         httpretty.enable()
-        worker._parse_file(csv_lines1, self._logzio_url, event_time)
-        worker._parse_file(csv_lines2, self._logzio_url, event_time)
+
+        for line in csv_lines1.splitlines()[1:]:
+            ship.add(worker._parse_file(gen1.headers.split(','), csv.reader([line]).next(), event_time))
+        ship.flush()
+
+        for line in csv_lines2.splitlines()[1:]:
+            ship.add(worker._parse_file(gen2.headers.split(','), csv.reader([line]).next(), event_time))
+        ship.flush()
 
         self.assertTrue(utils.verify_requests(readers, httpretty.HTTPretty.latest_requests),
                         "Something wrong parsing...")
@@ -222,8 +242,12 @@ class TestLambdaFunction(unittest.TestCase):
             "source": "aws.events",
             "time": event_time
         }
-        with self.assertRaises(IOError):
+        # TODO - catch exact string in the error
+        try:
             worker.lambda_handler(event, {})
+        except zlib_error:
+            return
+        assert True, "wrong compression - {}".format(zlib_error)
 
     def test_no_report(self):
         event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -250,46 +274,66 @@ class TestLambdaFunction(unittest.TestCase):
     @httpretty.activate
     def test_bad_logs(self):
         httpretty.register_uri(httpretty.POST, self._logzio_url, status=400)
-
+        ship = shipper.LogzioShipper(self._logzio_url)
         # send csv info to our mock server
         with gzip.open(SAMPLE_CSV_GZIP_1) as f:
             csv_lines = f.read().decode('utf-8').splitlines(True)
             event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            r = csv.reader(csv_lines, delimiter=',')
+            tmp_headers = r.next()
+            headers = [header.replace('/', '_') for header in tmp_headers]
             with self.assertRaises(BadLogsException):
-                worker._parse_file(csv_lines, self._logzio_url, event_time)
+                for row in r:
+                    ship.add(worker._parse_file(headers, row, event_time))
+                ship.flush()
 
     @httpretty.activate
     def test_wrong_token(self):
         httpretty.register_uri(httpretty.POST, self._logzio_url, status=401)
-
+        ship = shipper.LogzioShipper(self._logzio_url)
         # send csv info to our mock server
         with gzip.open(SAMPLE_CSV_GZIP_1) as f:
             csv_lines = f.read().decode('utf-8').splitlines(True)
             event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            r = csv.reader(csv_lines, delimiter=',')
+            tmp_headers = r.next()
+            headers = [header.replace('/', '_') for header in tmp_headers]
             with self.assertRaises(UnauthorizedAccessException):
-                worker._parse_file(csv_lines, self._logzio_url, event_time)
+                for row in r:
+                    ship.add(worker._parse_file(headers, row, event_time))
+                ship.flush()
 
     @httpretty.activate
     def test_retry_sending(self):
         httpretty.register_uri(httpretty.POST, self._logzio_url, status=405)
-
+        ship = shipper.LogzioShipper(self._logzio_url)
         # send csv info to our mock server
         with gzip.open(SAMPLE_CSV_GZIP_1) as f:
             csv_lines = f.read().decode('utf-8').splitlines(True)
             event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            r = csv.reader(csv_lines, delimiter=',')
+            tmp_headers = r.next()
+            headers = [header.replace('/', '_') for header in tmp_headers]
             with self.assertRaises(MaxRetriesException):
-                worker._parse_file(csv_lines, self._logzio_url, event_time)
+                for row in r:
+                    ship.add(worker._parse_file(headers, row, event_time))
+                ship.flush()
 
     @httpretty.activate
     def test_bad_url(self):
         httpretty.register_uri(httpretty.POST, self._logzio_url, status=404)
-
+        ship = shipper.LogzioShipper(self._logzio_url)
         # send csv info to our mock server
         with gzip.open(SAMPLE_CSV_GZIP_1) as f:
             csv_lines = f.read().decode('utf-8').splitlines(True)
             event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            r = csv.reader(csv_lines, delimiter=',')
+            tmp_headers = r.next()
+            headers = [header.replace('/', '_') for header in tmp_headers]
             with self.assertRaises(UnknownURL):
-                worker._parse_file(csv_lines, self._logzio_url, event_time)
+                for row in r:
+                    ship.add(worker._parse_file(headers, row, event_time))
+                ship.flush()
 
 
 if __name__ == '__main__':
