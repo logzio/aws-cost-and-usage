@@ -19,11 +19,11 @@ class CSVLineGenerator(object):
         self._obj_body = csv_like_obj_body
         self._line_delimiter = line_delimiter
         self._dec = zlib.decompressobj(16 + zlib.MAX_WBITS)
-        self._buff = ""
+        self._buff = ''
         self.headers = self.stream_line().next().replace('/', '_')
 
     def stream_line(self):
-        # type: (None) -> 'Generator'
+        # type: (CSVLineGenerator) -> 'Generator'
 
         def _get_next_line():
             # search for new line
@@ -34,19 +34,15 @@ class CSVLineGenerator(object):
 
         def reader(stream):
             while True:
-                next_chunk = self._dec.decompress(stream.read(1024))
+                try:
+                    yield _get_next_line()
+                    continue
+                # no new line
+                except ValueError:
+                    self._buff += self._dec.decompress(stream.read(1024))
                 # EOF
-                if not next_chunk:
+                if not self._buff:
                     break
-
-                self._buff += next_chunk
-                # in case we read more than 1 new line in one chunk
-                while True:
-                    try:
-                        yield _get_next_line()
-                    # no new line
-                    except ValueError:
-                        break
 
         return reader(self._obj_body)
 
