@@ -6,6 +6,8 @@ For more snapshot and explanations you can visit our blog here.
 ## Prerequisite
 Before you follow the steps bellow please make sure you enabled AWS to generate a report to your target bucket. If you 
 are not sure how to do it, you can check this post(TODO - add link).
+**Important!** This might significantly increase report size and might affect performance. AWS Lambda can run for up to 5 minutes with up to 3008MB, and the process time for the whole file must end within this timeframe.
+
 
 ## Step 1 - Create a new lambda 
 1. Sign in to your AWS account and open the AWS Lambda console.
