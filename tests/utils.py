@@ -139,6 +139,9 @@ def verify_requests(csv_readers, requests):
                 # type is the correct one
                 elif key in fields_parser:
                     if type(value) != fields_parser[key][1]:
+                        # can be both
+                        if value == "product_ecu":
+                            continue
                         logger.error("Unexpected type: {} - {} - {} vs. {}"
                                      .format(key, value, type(value), fields_parser[key][1]))
                         return False

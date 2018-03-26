@@ -71,7 +71,6 @@ def _parse_int(s):
 def get_fields_parser():
     # type: (None) -> dict
     return {
-        "bill_PayerAccountId": (_parse_int, int),
         "lineItem_UsageAmount": (_parse_float, float),
         "lineItem_BlendedRate": (_parse_float, float),
         "lineItem_BlendedCost": (_parse_float, float),
@@ -79,6 +78,8 @@ def get_fields_parser():
         "lineItem_UnblendedCost": (_parse_float, float),
         "pricing_publicOnDemandCost": (_parse_float, float),
         "pricing_publicOnDemandRate": (_parse_float, float),
+        "product_vcpu": (_parse_int, int),
+        "product_ecu": (_parse_float, float),
     }
 
 
