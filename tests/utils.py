@@ -2,9 +2,9 @@ import datetime
 import dateutil.relativedelta
 import json
 import logging
-import yaml
 
 from logging.config import fileConfig
+from src.lambda_function import get_fields_parser
 
 fileConfig('tests/logging_config.ini')
 logger = logging.getLogger()
@@ -109,41 +109,51 @@ def get_months_range():
     report_monthly_folder = "{:02d}{:02d}01-{:02d}{:02d}01".format(start.year, start.month, end.year, end.month)
     end = start
     start = end - dateutil.relativedelta.relativedelta(months=1)
-    previous_report_monthly_folder = "{:02d}{:02d}01-{:02d}{:02d}01".format(start.year, start.month, end.year, end.month)
+    previous_report_monthly_folder = "{:02d}{:02d}01-{:02d}{:02d}01"\
+        .format(start.year, start.month, end.year, end.month)
     return report_monthly_folder, previous_report_monthly_folder
 
 
-def load_yaml_to_dict(filename):
-    with open(filename) as f:
-        yaml_dict = yaml.load(f)
-
-    return yaml_dict
-
-
 def verify_requests(csv_readers, requests):
-    csvs_row_count = 0
-    headers = ["@timestamp", "uuid"]
+    csvs_row_count, csvs_col_count, req_row_count = 0, 0, 0
+    headers = set()
+    headers.update(["@timestamp", "uuid"])
+    fields_parser = get_fields_parser()
     for reader in csv_readers:
-        headers.extend(header.replace('/', '_') for header in reader.fieldnames)
+        headers.update(header.replace('/', '_') for header in reader.fieldnames)
         csvs_row_count += sum(1 for row in reader)
-        req_row_count = 0
-        for request in requests:
-            for req in request.parsed_body.splitlines():
-                req_row_count += 1
-                tested = json.loads(req)
-                for key, value in tested.iteritems():
-                    # check empty columns are not in the request json
-                    if value == '':
-                        logger.error("Unexpected empty key in the request")
+
+    for request in requests:
+        for req in request.parsed_body.splitlines():
+            req_row_count += 1
+            tested = json.loads(req)
+            for key, value in tested.iteritems():
+                # check empty columns are not in the request json
+                if value == '':
+                    logger.error("Unexpected empty key in the request")
+                    return False
+                # no additional headers
+                elif key not in headers:
+                    logger.error("Unexpected key: {}".format(key))
+                    return False
+                # type is the correct one
+                elif key in fields_parser:
+                    if type(value) != fields_parser[key][1]:
+                        logger.error("Unexpected type: {} - {} - {} vs. {}"
+                                     .format(key, value, type(value), fields_parser[key][1]))
                         return False
-                    elif key not in headers:
-                        logger.error("Unexpected key: {}".format(key))
+                # unicode
+                else:
+                    if type(value) != unicode:
+                        logger.error("Unexpected type: {} - {} vs. unicode"
+                                     .format(value, type(value)))
                         return False
 
     if csvs_row_count != req_row_count:
         logger.error("expected {} rows vs. {} rows sent".format(csvs_row_count, req_row_count))
         return False
 
+    logger.info("csvs_row_count {} vs. req_row_count {}".format(csvs_row_count, req_row_count))
     return True
 
 

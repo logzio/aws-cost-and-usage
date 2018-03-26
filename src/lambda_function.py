@@ -1,13 +1,12 @@
 import boto3
+import csv
 import dateutil.relativedelta
 import json
 import logging
 import os
+import zlib
 
-from csv import DictReader
 from dateutil import parser
-from io import BytesIO
-from gzip import GzipFile
 from shipper import LogzioShipper
 
 # Set logger
@@ -15,11 +14,37 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-def _download_csv_object(obj):
-    # type: (dict) -> str
-    byte_stream = BytesIO(obj['Body'].read())
-    csv_unzip = GzipFile(None, 'rb', fileobj=byte_stream).read().decode('utf-8')
-    return csv_unzip
+class CSVLineGenerator(object):
+    def __init__(self, csv_like_obj_body, line_delimiter='\n'):
+        self._obj_body = csv_like_obj_body
+        self._line_delimiter = line_delimiter
+        self._dec = zlib.decompressobj(16 + zlib.MAX_WBITS)
+        self._buff = ''
+        self.headers = self.stream_line().next().replace('/', '_')
+
+    def stream_line(self):
+        # type: (CSVLineGenerator) -> 'Generator'
+
+        def _get_next_line():
+            # search for new line
+            endline_idx = self._buff.index(self._line_delimiter)
+            next_line = self._buff[:endline_idx]
+            self._buff = self._buff[endline_idx + 1:]
+            return next_line
+
+        def reader(stream):
+            while True:
+                try:
+                    yield _get_next_line()
+                    continue
+                # no new line
+                except ValueError:
+                    self._buff += self._dec.decompress(stream.read(1024))
+                # EOF
+                if not self._buff:
+                    break
+
+        return reader(self._obj_body)
 
 
 def _download_manifest_file(obj):
@@ -29,26 +54,50 @@ def _download_manifest_file(obj):
     return json_content
 
 
-def _download_object(obj, is_csv):
-    return _download_csv_object(obj) if is_csv else _download_manifest_file(obj)
+def _parse_float(s):
+    try:
+        return float(s)
+    except ValueError:
+        return s
 
 
-def _parse_file(csv_lines, logzio_url, event_time):
-    # type: (list[str], str, str) -> None
-    reader = DictReader(csv_lines, delimiter=',')
-    reader.fieldnames = [header.replace('/', '_') for header in reader.fieldnames]
-    shipper = LogzioShipper(logzio_url)
-    for row in reader:
-        row['@timestamp'] = event_time
-        row['uuid'] = "billing_report_{}".format(event_time)
+def _parse_int(s):
+    try:
+        return int(s)
+    except ValueError:
+        return s
 
-        empty_keys = [k for k, v in row.iteritems() if not v]
-        for k in empty_keys:
-            del row[k]
 
-        shipper.add(row)
+def get_fields_parser():
+    # type: (None) -> dict
+    return {
+        "bill_PayerAccountId": (_parse_int, int),
+        "lineItem_UsageAmount": (_parse_float, float),
+        "lineItem_BlendedRate": (_parse_float, float),
+        "lineItem_BlendedCost": (_parse_float, float),
+        "lineItem_UnblendedRate": (_parse_float, float),
+        "lineItem_UnblendedCost": (_parse_float, float),
+        "pricing_publicOnDemandCost": (_parse_float, float),
+        "pricing_publicOnDemandRate": (_parse_float, float),
+    }
 
-    shipper.flush()
+
+def _parse_file(headers, line, event_time):
+    # type: (list[str], list[str], str) -> dict
+    row = {
+        '@timestamp': event_time,
+        'uuid': "billing_report_{}".format(event_time),
+    }
+
+    fields_parser = get_fields_parser()
+    for header, tab in zip(headers, line):
+        if tab:
+            try:
+                row[header] = fields_parser[header][0](tab)
+            except KeyError:
+                row[header] = tab
+
+    return row
 
 
 def _environment_variables():
@@ -75,7 +124,7 @@ def _latest_csv_keys(s3client, env_var, event_time):
                                   report_monthly_folder,
                                   env_var['report_name']))
 
-        json_content = _download_object(obj, False)
+        json_content = _download_manifest_file(obj)
         # report can be split to a few .gz files
         return json_content['reportKeys']
     except s3client.exceptions.NoSuchKey:
@@ -91,7 +140,7 @@ def _latest_csv_keys(s3client, env_var, event_time):
                                       report_monthly_folder,
                                       env_var['report_name']))
 
-            json_content = _download_object(obj, False)
+            json_content = _download_manifest_file(obj)
             # report can be split to a few .gz files
             return json_content["reportKeys"]
 
@@ -118,10 +167,16 @@ def lambda_handler(event, context):
         latest_csv_keys = _latest_csv_keys(s3client, env_var, event_time)
     except s3client.exceptions.NoSuchKey:
         logger.error("Could not find latest report that is in the Manifest file")
-        raise s3client.exceptions.NoSuchKey()
+        raise
 
+    shipper = LogzioShipper(logzio_url)
     for key in latest_csv_keys:
-            csv_like_obj = s3client.get_object(Bucket=env_var['bucket'], Key=key)
-            csv_obj = _download_object(csv_like_obj, True)
-            csv_lines = csv_obj.splitlines(True)
-            _parse_file(csv_lines, logzio_url, event_time)
+        logger.info("parsing the following report: {}".format(key))
+        csv_like_obj = s3client.get_object(Bucket=env_var['bucket'], Key=key)
+        gen = CSVLineGenerator(csv_like_obj['Body'])
+        headers = csv.reader([gen.headers]).next()
+        for line in gen.stream_line():
+            list_line = csv.reader([line])
+            shipper.add(_parse_file(headers, list_line.next(), event_time))
+
+        shipper.flush()
