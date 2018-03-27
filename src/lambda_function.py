@@ -80,6 +80,9 @@ def get_fields_parser():
         "pricing_publicOnDemandRate": (_parse_float, float),
         "product_vcpu": (_parse_int, int),
         "product_ecu": (_parse_float, float),
+        "reservation_AmortizedUpfrontCostForUsage": (_parse_float, float),
+        "reservation_RecurringFeeForUsage": (_parse_float, float),
+        "reservation_EffectiveCost": (_parse_float, float),
     }
 
 
