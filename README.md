@@ -1,11 +1,10 @@
 ## Overview
  
-This is an AWS Lambda function that collects AWS cost and usage csv report and sends them to Logz.io in bulk, over HTTP.
-For more snapshots and explanations you can visit our blog [here](https://logz.io/blog/aws-cost-usage-report-1/).
+This AWS Lambda function collects AWS Cost and Usage reports and sends them to Logz.io in bulk, over HTTP. For more snapshots and explanations you can visit our blog [here](https://logz.io/blog/aws-cost-usage-report-1/).
 
 ## Prerequisite
-Before you follow the steps bellow please make sure you enabled AWS to generate a report to your target bucket. If you 
-are not sure how to do it, you can check this [post](https://logz.io/blog/aws-cost-usage-report-1/).
+Before you follow the steps below please make sure you configured AWS to generate a report to a target S3 bucket. If you 
+are not sure how to do it, please refer to this [post](https://logz.io/blog/aws-cost-usage-report-1/).
 **Important!** AWS Lambda can run for up to 5 minutes with up to 3008MB, and the process time for the whole report must end within this timeframe.
 
 
@@ -45,7 +44,7 @@ are not sure how to do it, you can check this [post](https://logz.io/blog/aws-co
   - REPORT_PATH: *See below picture where can you take it from*
   - S3_BUCKET_NAME: *See below picture where can you take it from* 
 5. In the Basic Settings section, we recommend to start by setting memory to 1024(MB) and a 5(MIN) timeout, and then subsequently adjusting these values based on trial and error, and according to your Lambda usage.
-6. Leave the other settings as default
+6. Leave the other settings as default report fields
 ![Alt text](report_fields.png?raw=true)
 
 ## Step 3 - Setting scheduling trigger
