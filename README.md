@@ -1,11 +1,13 @@
 ## Overview
  
 This is an AWS Lambda function that collects AWS cost and usage csv report and sends them to Logz.io in bulk, over HTTP.
-For more snapshot and explanations you can visit our blog here.
+For more snapshots and explanations you can visit our blog [here](https://logz.io/blog/aws-cost-usage-report-1/).
 
 ## Prerequisite
 Before you follow the steps bellow please make sure you enabled AWS to generate a report to your target bucket. If you 
-are not sure how to do it, you can check this post(TODO - add link).
+are not sure how to do it, you can check this [post](https://logz.io/blog/aws-cost-usage-report-1/).
+**Important!** AWS Lambda can run for up to 5 minutes with up to 3008MB, and the process time for the whole report must end within this timeframe.
+
 
 ## Step 1 - Create a new lambda 
 1. Sign in to your AWS account and open the AWS Lambda console.
