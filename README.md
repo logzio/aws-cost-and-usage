@@ -5,7 +5,7 @@ This AWS Lambda function collects AWS Cost and Usage reports and sends them to L
 ## Prerequisite
 Before you follow the steps below please make sure you configured AWS to generate a report to a target S3 bucket. If you 
 are not sure how to do it, please refer to this [post](https://logz.io/blog/aws-cost-usage-report-1/).
-**Important!** AWS Lambda can run for up to 5 minutes with up to 3008MB, and the process time for the whole report must end within this timeframe.
+**Important!** AWS Lambda can run for up to 15 minutes with up to 3008MB, and the process time for the whole report must end within this timeframe.
 
 
 ## Step 1 - Create a new lambda 
