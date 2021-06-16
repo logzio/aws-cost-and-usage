@@ -6,7 +6,7 @@ import logging
 from logging.config import fileConfig
 from src.lambda_function import get_fields_parser
 
-fileConfig('tests/logging_config.ini')
+fileConfig('logging_config.ini')
 logger = logging.getLogger()
 
 
@@ -21,8 +21,7 @@ def create_bucket(s3client, bucket):
     logger.info("create_bucket response: {}".format(response))
 
 
-def delete_bucket(s3client, bucket):
-    # before deleting bucket we need to delete all objects
+def empty_bucket(s3client, bucket):
     paginator = s3client.get_paginator('list_objects_v2')
     pages = paginator.paginate(Bucket=bucket)
     delete_us = dict(Objects=[])
@@ -50,6 +49,11 @@ def delete_bucket(s3client, bucket):
         except Exception as e:
             logger.error("Unexpected error while delete_objects: {}".format(e))
             raise
+
+
+def delete_bucket(s3client, bucket):
+    # before deleting bucket we need to delete all objects
+    empty_bucket(s3client, bucket)
 
     # delete bucket
     try:
@@ -121,13 +125,13 @@ def verify_requests(csv_readers, requests):
     fields_parser = get_fields_parser()
     for reader in csv_readers:
         headers.update(header.replace('/', '_') for header in reader.fieldnames)
-        csvs_row_count += sum(1 for row in reader)
+        csvs_row_count += sum(1 for _ in reader)
 
     for request in requests:
         for req in request.parsed_body.splitlines():
             req_row_count += 1
             tested = json.loads(req)
-            for key, value in tested.iteritems():
+            for key, value in tested.items():
                 # check empty columns are not in the request json
                 if value == '':
                     logger.error("Unexpected empty key in the request")
@@ -147,12 +151,12 @@ def verify_requests(csv_readers, requests):
                         return False
                 # unicode
                 else:
-                    if type(value) != unicode:
-                        logger.error("Unexpected type: {} - {} vs. unicode"
+                    if type(value) != str:
+                        logger.error("Unexpected type: {} - {} vs. str"
                                      .format(value, type(value)))
                         return False
 
-    if csvs_row_count != req_row_count:
+    if csvs_row_count != req_row_count/2:
         logger.error("expected {} rows vs. {} rows sent".format(csvs_row_count, req_row_count))
         return False
 

@@ -19,13 +19,13 @@ from zlib import error as zlib_error
 
 
 # create logger assuming running from ./run script
-fileConfig('tests/logging_config.ini')
+fileConfig('logging_config.ini')
 logger = logging.getLogger(__name__)
 
-CONFIGURATION_FILE = 'tests/config.yaml'
-SAMPLE_CSV_GZIP_1 = 'tests/reports/test-billing-report-1.csv.gz'
-SAMPLE_CSV_GZIP_2 = 'tests/reports/test-billing-report-2.csv.gz'
-SAMPLE_CSV_ZIP_1 = 'tests/reports/test-billing-report-1.csv.zip'
+CONFIGURATION_FILE = 'config.yaml'
+SAMPLE_CSV_GZIP_1 = 'reports/test-billing-report-1.csv.gz'
+SAMPLE_CSV_GZIP_2 = 'reports/test-billing-report-2.csv.gz'
+SAMPLE_CSV_ZIP_1 = 'reports/test-billing-report-1.csv.zip'
 
 s3client = boto3.client('s3')
 
@@ -33,9 +33,10 @@ s3client = boto3.client('s3')
 class TestLambdaFunction(unittest.TestCase):
     """ Unit testing logzio lambda function """
 
-    def setUp(self):
+    @classmethod
+    def setUpClass(cls):
         with open(CONFIGURATION_FILE, 'r') as f:
-            conf = yaml.load(f)
+            conf = yaml.load(f, Loader=yaml.FullLoader)
             # Set os.environ for tests
             os.environ['REPORT_NAME'] = conf['bucket']['report_name']
             os.environ['REPORT_PATH'] = conf['bucket']['report_path']
@@ -43,42 +44,24 @@ class TestLambdaFunction(unittest.TestCase):
             os.environ['TOKEN'] = conf['account']['logzio_token']
             os.environ['URL'] = conf['account']['logzio_url']
 
+            global s3client
+            s3client = boto3.client(
+                's3',
+                region_name=conf['s3client']['region_name'],
+                aws_access_key_id=conf['s3client']['aws_access_key_id'],
+                aws_secret_access_key=conf['s3client']['aws_secret_access_key'],
+                aws_session_token=conf['s3client']['aws_session_token']
+            )
+
+            utils.create_bucket(s3client, os.environ['S3_BUCKET_NAME'])
+
+    def setUp(self):
         self._logzio_url = "{0}/?token={1}&type=billing".format(os.environ['URL'], os.environ['TOKEN'])
 
-        utils.create_bucket(s3client, os.environ['S3_BUCKET_NAME'])
-        self._bucket_policy = {
-            "Version": "2008-10-17",
-            "Id": "Policy1335892530063",
-            "Statement": [
-                {
-                    "Sid": "Stmt1335892150622",
-                    "Effect": "Allow",
-                    "Principal": {
-                        "AWS": "arn:aws:iam::386209384616:root"
-                    },
-                    "Action": [
-                        "s3:GetBucketAcl",
-                        "s3:GetBucketPolicy"
-                    ],
-                    "Resource": "arn:aws:s3:::{}".format(os.environ['S3_BUCKET_NAME'])
-                },
-                {
-                    "Sid": "Stmt1335892526596",
-                    "Effect": "Allow",
-                    "Principal": {
-                        "AWS": "arn:aws:iam::386209384616:root"
-                    },
-                    "Action": [
-                        "s3:PutObject",
-                        "s3:GetObject"
-                    ],
-                    "Resource": "arn:aws:s3:::{}/*".format(os.environ['S3_BUCKET_NAME'])
-                }
-            ]
-        }
-        utils.put_bucket_policy(s3client, os.environ['S3_BUCKET_NAME'], json.dumps(self._bucket_policy))
+        utils.empty_bucket(s3client, os.environ['S3_BUCKET_NAME'])
 
-    def tearDown(self):
+    @classmethod
+    def tearDownClass(cls):
         try:
             utils.delete_bucket(s3client, os.environ['S3_BUCKET_NAME'])
         except s3client.exceptions.NoSuchBucket:
@@ -144,7 +127,7 @@ class TestLambdaFunction(unittest.TestCase):
             event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             ship = shipper.LogzioShipper(self._logzio_url)
             r = csv.reader(csv_lines, delimiter=',')
-            tmp_headers = r.next()
+            tmp_headers = next(r)
             headers = [header.replace('/', '_') for header in tmp_headers]
             for row in r:
                 ship.add(worker._parse_file(headers, row, event_time))
@@ -209,11 +192,11 @@ class TestLambdaFunction(unittest.TestCase):
         httpretty.enable()
 
         for line in csv_lines1.splitlines()[1:]:
-            ship.add(worker._parse_file(gen1.headers.split(','), csv.reader([line]).next(), event_time))
+            ship.add(worker._parse_file(gen1.headers.split(','), next(csv.reader([line])), event_time))
         ship.flush()
 
         for line in csv_lines2.splitlines()[1:]:
-            ship.add(worker._parse_file(gen2.headers.split(','), csv.reader([line]).next(), event_time))
+            ship.add(worker._parse_file(gen2.headers.split(','), next(csv.reader([line])), event_time))
         ship.flush()
 
         self.assertTrue(utils.verify_requests(readers, httpretty.HTTPretty.latest_requests),
@@ -280,7 +263,7 @@ class TestLambdaFunction(unittest.TestCase):
             csv_lines = f.read().decode('utf-8').splitlines(True)
             event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             r = csv.reader(csv_lines, delimiter=',')
-            tmp_headers = r.next()
+            tmp_headers = next(r)
             headers = [header.replace('/', '_') for header in tmp_headers]
             with self.assertRaises(BadLogsException):
                 for row in r:
@@ -296,7 +279,7 @@ class TestLambdaFunction(unittest.TestCase):
             csv_lines = f.read().decode('utf-8').splitlines(True)
             event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             r = csv.reader(csv_lines, delimiter=',')
-            tmp_headers = r.next()
+            tmp_headers = next(r)
             headers = [header.replace('/', '_') for header in tmp_headers]
             with self.assertRaises(UnauthorizedAccessException):
                 for row in r:
@@ -312,7 +295,7 @@ class TestLambdaFunction(unittest.TestCase):
             csv_lines = f.read().decode('utf-8').splitlines(True)
             event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             r = csv.reader(csv_lines, delimiter=',')
-            tmp_headers = r.next()
+            tmp_headers = next(r)
             headers = [header.replace('/', '_') for header in tmp_headers]
             with self.assertRaises(MaxRetriesException):
                 for row in r:
@@ -328,7 +311,7 @@ class TestLambdaFunction(unittest.TestCase):
             csv_lines = f.read().decode('utf-8').splitlines(True)
             event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             r = csv.reader(csv_lines, delimiter=',')
-            tmp_headers = r.next()
+            tmp_headers = next(r)
             headers = [header.replace('/', '_') for header in tmp_headers]
             with self.assertRaises(UnknownURL):
                 for row in r:

@@ -7,7 +7,7 @@ import os
 import zlib
 
 from dateutil import parser
-from shipper import LogzioShipper
+from .shipper import LogzioShipper
 
 # Set logger
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ class CSVLineGenerator(object):
         self._line_delimiter = line_delimiter
         self._dec = zlib.decompressobj(16 + zlib.MAX_WBITS)
         self._buff = ''
-        self.headers = self.stream_line().next().replace('/', '_')
+        self.headers = next(self.stream_line()).replace('/', '_')
 
     def stream_line(self):
         # type: (CSVLineGenerator) -> 'Generator'
@@ -39,7 +39,7 @@ class CSVLineGenerator(object):
                     continue
                 # no new line
                 except ValueError:
-                    self._buff += self._dec.decompress(stream.read(1024))
+                    self._buff += self._dec.decompress(stream.read(1024)).decode('utf-8')
                 # EOF
                 if not self._buff:
                     break
@@ -69,7 +69,7 @@ def _parse_int(s):
 
 
 def get_fields_parser():
-    # type: (None) -> dict
+    # type: () -> dict
     return {
         "lineItem_UsageAmount": (_parse_float, float),
         "lineItem_BlendedRate": (_parse_float, float),
@@ -132,21 +132,21 @@ def _latest_csv_keys(s3client, env_var, event_time):
         # report can be split to a few .gz files
         return json_content['reportKeys']
     except s3client.exceptions.NoSuchKey:
-            # take previous months range if today is not available
-            # can happen when we change months and no new report yet
-            # see issue - https://github.com/PriceBoardIn/aws-elk-billing/issues/16
-            end = start
-            start = end - dateutil.relativedelta.relativedelta(months=1)
-            report_monthly_folder = "{:02d}{:02d}01-{:02d}{:02d}01".format(start.year, start.month, end.year, end.month)
-            obj = s3client.get_object(Bucket=env_var['bucket'],
-                                      Key="{0}/{1}/{2}-Manifest.json"
-                                      .format(env_var['report_path'],
-                                      report_monthly_folder,
-                                      env_var['report_name']))
+        # take previous months range if today is not available
+        # can happen when we change months and no new report yet
+        # see issue - https://github.com/PriceBoardIn/aws-elk-billing/issues/16
+        end = start
+        start = end - dateutil.relativedelta.relativedelta(months=1)
+        report_monthly_folder = "{:02d}{:02d}01-{:02d}{:02d}01".format(start.year, start.month, end.year, end.month)
+        obj = s3client.get_object(Bucket=env_var['bucket'],
+                                  Key="{0}/{1}/{2}-Manifest.json"
+                                  .format(env_var['report_path'],
+                                          report_monthly_folder,
+                                          env_var['report_name']))
 
-            json_content = _download_manifest_file(obj)
-            # report can be split to a few .gz files
-            return json_content["reportKeys"]
+        json_content = _download_manifest_file(obj)
+        # report can be split to a few .gz files
+        return json_content["reportKeys"]
 
 
 def _validate_event(event):
@@ -178,9 +178,9 @@ def lambda_handler(event, context):
         logger.info("parsing the following report: {}".format(key))
         csv_like_obj = s3client.get_object(Bucket=env_var['bucket'], Key=key)
         gen = CSVLineGenerator(csv_like_obj['Body'])
-        headers = csv.reader([gen.headers]).next()
+        headers = next(csv.reader([gen.headers]))
         for line in gen.stream_line():
             list_line = csv.reader([line])
-            shipper.add(_parse_file(headers, list_line.next(), event_time))
+            shipper.add(_parse_file(headers, next(list_line), event_time))
 
         shipper.flush()
