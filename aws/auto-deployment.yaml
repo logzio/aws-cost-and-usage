@@ -1,0 +1,232 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Auto deployment of Logz.io AWS Cost and Usage.
+Parameters:
+  S3BucketName:
+    Type: String
+    Description: >-
+      The name for the bucket which will contain the report files. The bucket name
+      must contain only lowercase letters, numbers, periods (.), and dashes (-),
+      and must follow Amazon S3 bucket restrictions and limitations.
+    Default: my-s3-bucket
+    AllowedPattern: '^[a-z0-9\-\.]*$'
+    MinLength: 1
+  ReportName:
+    Type: String
+    Description: >-
+      The name of report that you want to create. The name must be unique, is
+      case sensitive and can't include spaces.
+    Default: my-report
+    AllowedPattern: ^\S*$
+    MinLength: 1
+  ReportPrefix:
+    Type: String
+    Description: >-
+      The prefix that AWS adds to the report name when AWS delivers the report.
+      Your prefix can't include spaces.
+    Default: reports
+    AllowedPattern: ^\S*$
+    MinLength: 1
+  ReportTimeUnit:
+    Type: String
+    Description: >-
+      The granularity of the line items in the report. (Enabling hourly reports
+      does not mean that a new report is generated every hour. It means that
+      data in the report is aggregated with a granularity of one hour.)
+    Default: DAILY
+    AllowedValues:
+      - HOURLY
+      - DAILY
+      - MONTHLY
+  ReportAdditionalSchemaElements:
+    Type: String
+    Description: >-
+      Choose INCLUDE if you want AWS to include additional details
+      about individual resources IDs in the report (This might significantly
+      increase report size and might affect performance. AWS Lambda can run for
+      up to 15 minutes with up to 10240 MB, and the process time for the whole
+      file must end within this timeframe.), or DON'T INCLUDE otherwise.
+    Default: DON'T INCLUDE
+    AllowedValues:
+      - DON'T INCLUDE
+      - INCLUDE
+  LogzioURL:
+    Type: String
+    Description: >-
+      The Logz.io listener URL. If you are in the EU region choose
+      https://listener-eu.logz.io:8071. Otherwise, choose
+      https://listener.logz.io:8071. (You can tell which region you are in by
+      checking your login URL - app.logz.io means you are in the US, and
+      app-eu.logz.io means you are in the EU.)
+    Default: 'https://listener.logz.io:8071'
+    AllowedValues:
+      - 'https://listener.logz.io:8071'
+      - 'https://listener-eu.logz.io:8071'
+  LogzioToken:
+    Type: String
+    Description: >-
+      Your Logz.io account token. (Can be retrieved on the Settings page in the
+      Logz.io UI.)
+    MinLength: 1
+  LambdaMemorySize:
+    Type: Number
+    Description: >-
+      The amount of memory available to the function at runtime. Increasing the
+      function memory also increases its CPU allocation. The value can be
+      multiple of 1 MB. Minimum value is 128 MB and Maximum value is 10240 MB.
+      We recommend to start with 1024 MB.
+    Default: 1024
+    MinValue: 128
+    MaxValue: 10240
+  LambdaTimeout:
+    Type: Number
+    Description: >-
+      The amount of time that Lambda allows a function to run before stopping
+      it. Minimum value is 1 second and Maximum value is 900 seconds. We
+      recommend to start with 300 seconds (5 minutes).
+    Default: 300
+    MinValue: 1
+    MaxValue: 900
+  CloudWatchEventScheduleExpression:
+    Type: String
+    Description: >-
+      The scheduling expression that determines when and how often the Lambda
+      function runs. We recommend to start with 10 hour rate.
+    Default: rate(10 hours)
+    MinLength: 1
+    MaxLength: 256
+Conditions:
+  IsAdditionalSchemaElementsIncluded: !Equals
+    - Ref: ReportAdditionalSchemaElements
+    - INCLUDE
+Resources:
+  CUR:
+    Type: 'AWS::CUR::ReportDefinition'
+    Properties:
+      AdditionalSchemaElements: !If
+        - IsAdditionalSchemaElementsIncluded
+        - - RESOURCES
+        - []
+      Compression: GZIP
+      Format: textORcsv
+      RefreshClosedReports: true
+      ReportName: !Ref ReportName
+      ReportVersioning: CREATE_NEW_REPORT
+      S3Bucket: !Ref S3BucketName
+      S3Prefix: !Ref ReportPrefix
+      S3Region: !Ref 'AWS::Region'
+      TimeUnit: !Ref ReportTimeUnit
+    DependsOn:
+      - S3Bucket
+      - S3BucketPolicy
+  S3BucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref S3BucketName
+      PolicyDocument:
+        Statement:
+          - Action:
+              - 's3:GetBucketAcl'
+              - 's3:GetBucketPolicy'
+            Effect: Allow
+            Principal:
+              Service:
+                - billingreports.amazonaws.com
+            Resource: !Join
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Ref S3BucketName
+          - Action:
+              - 's3:PutObject'
+            Effect: Allow
+            Principal:
+              Service:
+                - billingreports.amazonaws.com
+            Resource: !Join
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Ref S3BucketName
+                - /*
+    DependsOn:
+      - S3Bucket
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Ref S3BucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+  LambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Code:
+        S3Bucket: aws-cost-usage-auto-deployment
+        S3Key: lambda_function_code.zip
+      FunctionName: logzio-aws-cost-and-usage
+      Description: >-
+        Lambda function for collecting AWS cost and usage reports and sending
+        them to Logz.io in bulks over HTTP.
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt IAMRole.Arn
+      Runtime: python3.8
+      Timeout: !Ref LambdaTimeout
+      MemorySize: !Ref LambdaMemorySize
+      ReservedConcurrentExecutions: 1
+      Environment:
+        Variables:
+          URL: !Ref LogzioURL
+          TOKEN: !Ref LogzioToken
+          S3_BUCKET_NAME: !Ref S3BucketName
+          REPORT_PATH: !Join
+            - ''
+            - - !Ref ReportPrefix
+              - /
+              - !Ref ReportName
+          REPORT_NAME: !Ref ReportName
+  IAMRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: LogzioAWSCostAndUsage
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: LogzioAWSCostAndUsage
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:Get*'
+                  - 's3:List*'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: '*'
+  EventRule:
+    Type: 'AWS::Events::Rule'
+    Properties:
+      Name: LogzioAWSCostAndUsage
+      ScheduleExpression: !Ref CloudWatchEventScheduleExpression
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt LambdaFunction.Arn
+          Id: LogzioAWSCostAndUsageLambdaFunction
+  LambdaPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !Ref LambdaFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt EventRule.Arn
