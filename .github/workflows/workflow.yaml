@@ -6,7 +6,7 @@ on:
       - master
 jobs:
   deploy:
-    run-on: ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - name: Create 'upload' directory
