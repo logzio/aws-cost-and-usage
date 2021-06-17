@@ -167,7 +167,7 @@ Resources:
       Description: >-
         Lambda function for collecting AWS cost and usage reports and sending
         them to Logz.io in bulks over HTTP.
-      Handler: lambda_function.lambda_handler
+      Handler: app.lambda_function.lambda_handler
       Role: !GetAtt IAMRole.Arn
       Runtime: python3.8
       Timeout: !Ref LambdaTimeout
