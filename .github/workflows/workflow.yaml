@@ -1,5 +1,6 @@
 name: Update aws cost and usage auto-deployment files
 on:
+  workflow_dispatch:
   push:
     branches:
       - master
