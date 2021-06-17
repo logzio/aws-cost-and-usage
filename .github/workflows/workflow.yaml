@@ -11,21 +11,21 @@ jobs:
       - uses: actions/checkout@v2
       - name: Create 'upload' directory
         run: |
-          mkdir ${{ github.repository }}/upload
+          mkdir -p ${{ github.workspace }}/upload
       - name: Rename 'src' directory to 'app'
         run: |
-          mv ${{ github.repository }}/src ${{ github.repository }}/app
+          mv ${{ github.workspace }}/src ${{ github.workspace }}/app
       - name: Zip 'app' directory into 'upload' directory
         run: |
-          zip -r ${{ github.repository }}/upload/lambda_function_code.zip ${{ github.repository }}/app
+          zip -r ${{ github.workspace }}/upload/lambda_function_code.zip ${{ github.workspace }}/app
       - name: Copy 'auto-deployment.yaml' to 'upload' directory
         run: |
-          cp ${{ github.repository }}/aws/auto-deployment.yaml ${{ github.repository }}/upload
+          cp ${{ github.workspace }}/aws/auto-deployment.yaml ${{ github.workspace }}/upload
       - uses: awact/s3-action@master
         with:
           args: --acl public-read --follow-symlinks --delete
         env:
-          SOURCE_DIR: ${{ github.repository }}'/upload'
+          SOURCE_DIR: ${{ github.workspace }}'/upload'
           AWS_REGION: 'us-east-1'
           AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET_NAME }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
