@@ -1,0 +1,31 @@
+name: Update aws cost and usage auto-deployment files
+on:
+  push:
+    branches:
+      - master
+jobs:
+  deploy:
+    run-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Create 'upload' directory
+        run: |
+          mkdir upload
+      - name: Rename 'src' directory to 'app'
+        run: |
+          mv /src /app
+      - name: Zip 'app' directory into 'upload' directory
+        run: |
+          zip -r upload/lambda_function_code.zip /app
+      - name: Copy 'auto-deployment.yaml' to 'upload' directory
+        run: |
+          cp aws/auto-deployment.yaml /upload
+      - uses: awact/s3-action@master
+        with:
+          args: --acl public-read --follow-symlinks --delete
+          env:
+            SOURCE_DIR: '/upload'
+            AWS_REGION: 'us-east-1'
+            AWS_S3_BUCKET: ${{ secrets.AWS_S2_BUCKET_NAME }}
+            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
