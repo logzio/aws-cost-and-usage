@@ -25,7 +25,7 @@ jobs:
         with:
           args: --acl public-read --follow-symlinks --delete
           env:
-            SOURCE_DIR: '/upload'
+            SOURCE_DIR: './upload'
             AWS_REGION: 'us-east-1'
             AWS_S3_BUCKET: ${{ secrets.AWS_S2_BUCKET_NAME }}
             AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
