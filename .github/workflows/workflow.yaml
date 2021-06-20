@@ -21,12 +21,15 @@ jobs:
       - name: Copy 'auto-deployment.yaml' to 'upload' directory
         run: |
           cp ${{ github.workspace }}/aws/auto-deployment.yaml ${{ github.workspace }}/upload
-      - uses: awact/s3-action@master
-        with:
-          args: --acl public-read --follow-symlinks --delete
+      - name: Setup python
+          uses: actions/setup-python@v2
+          with:
+            python-version: 3.8
+      - name: Run python script that empty the S3 bucket and upload files to it with public-read
+        run: |
+          python ${{ github.workspace }}/action/run.py
         env:
-          SOURCE_DIR: ${{ github.workspace }}/upload
-          AWS_REGION: 'us-east-1'
+          GITHUB_WORKSPACE: ${{ github.workspace }}
           AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
