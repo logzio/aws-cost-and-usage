@@ -3,10 +3,11 @@ import boto3
 
 from botocore.exceptions import NoCredentialsError
 
-LAMBDA_FUNCTION_CODE_ZIP_FILE_PATH = "{}/lambda_function_code.zip".format(os.environ['GITHUB_WORKSPACE'])
-AUTO_DEPLOYMENT_YAML_FILE_PATH = "{}/auto-deployment.yaml".format(os.environ['GITHUB_WORKSPACE'])
 LAMBDA_FUNCTION_CODE_ZIP_FILE_NAME = 'lambda_function_code.zip'
+LAMBDA_FUNCTION_CODE_ZIP_FILE_PATH = "{0}/upload/{1}}".format(os.environ['GITHUB_WORKSPACE'],
+                                                              LAMBDA_FUNCTION_CODE_ZIP_FILE_NAME)
 AUTO_DEPLOYMENT_YAML_FILE_NAME = 'auto-deployment.yaml'
+AUTO_DEPLOYMENT_YAML_FILE_PATH = "{0}/upload/{1}".format(os.environ['GITHUB_WORKSPACE'], AUTO_DEPLOYMENT_YAML_FILE_NAME)
 
 
 def empty_s3_bucket(bucket):
@@ -14,7 +15,7 @@ def empty_s3_bucket(bucket):
     bucket = s3resource.Bucket(bucket)
 
     bucket.objects.delete()
-    print("S3 Bucket Is Now Empty")
+    print("S3 bucket is now empty")
 
 
 def upload_to_aws(local_file, bucket, s3_file):
@@ -29,8 +30,10 @@ def upload_to_aws(local_file, bucket, s3_file):
         print("{} was uploaded successfully".format(s3_file))
     except FileNotFoundError:
         print("The file {} was not found".format(local_file))
+        exit(1)
     except NoCredentialsError:
         print("Credentials not available")
+        exit(1)
 
 
 empty_s3_bucket(os.environ['AWS_S3_BUCKET'])
