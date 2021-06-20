@@ -21,8 +21,7 @@ jobs:
       - name: Copy 'auto-deployment.yaml' to 'upload' directory
         run: |
           cp ${{ github.workspace }}/aws/auto-deployment.yaml ${{ github.workspace }}/upload
-      - name: Setup python
-          uses: actions/setup-python@v2
+      - uses: actions/setup-python@v2
           with:
             python-version: 3.8
       - name: Run python script that empty the S3 bucket and upload files to it with public-read
