@@ -26,6 +26,7 @@ jobs:
           python-version: '3.x'
       - name: Run python script that empty the S3 bucket and upload files to it with public-read
         run: |
+          pip install boto3
           python ${{ github.workspace }}/action/run.py
         env:
           GITHUB_WORKSPACE: ${{ github.workspace }}
