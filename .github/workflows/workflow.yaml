@@ -22,8 +22,8 @@ jobs:
         run: |
           cp ${{ github.workspace }}/aws/auto-deployment.yaml ${{ github.workspace }}/upload
       - uses: actions/setup-python@v2
-          with:
-            python-version: 3.8
+        with:
+          python-version: '3.x'
       - name: Run python script that empty the S3 bucket and upload files to it with public-read
         run: |
           python ${{ github.workspace }}/action/run.py
