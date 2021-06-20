@@ -4,7 +4,7 @@ import boto3
 from botocore.exceptions import NoCredentialsError
 
 LAMBDA_FUNCTION_CODE_ZIP_FILE_NAME = 'lambda_function_code.zip'
-LAMBDA_FUNCTION_CODE_ZIP_FILE_PATH = "{0}/upload/{1}}".format(os.environ['GITHUB_WORKSPACE'],
+LAMBDA_FUNCTION_CODE_ZIP_FILE_PATH = "{0}/upload/{1}".format(os.environ['GITHUB_WORKSPACE'],
                                                               LAMBDA_FUNCTION_CODE_ZIP_FILE_NAME)
 AUTO_DEPLOYMENT_YAML_FILE_NAME = 'auto-deployment.yaml'
 AUTO_DEPLOYMENT_YAML_FILE_PATH = "{0}/upload/{1}".format(os.environ['GITHUB_WORKSPACE'], AUTO_DEPLOYMENT_YAML_FILE_NAME)
