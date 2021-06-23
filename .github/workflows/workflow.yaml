@@ -15,7 +15,7 @@ jobs:
       - name: Run unit tests
         run: |
           pip install pytest
-          pytest src
+          pytest tests/lambda_test.py
       - name: Create 'upload' directory
         run: |
           mkdir -p upload
