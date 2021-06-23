@@ -15,6 +15,7 @@ jobs:
       - name: Run unit tests
         run: |
           pip install pytest
+          pip install boto3
           pytest tests/lambda_test.py
       - name: Create 'upload' directory
         run: |
