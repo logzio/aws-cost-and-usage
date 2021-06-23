@@ -9,27 +9,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Create 'upload' directory
-        run: |
-          mkdir -p ${{ github.workspace }}/upload
-      - name: Rename 'src' directory to 'app'
-        run: |
-          mv ${{ github.workspace }}/src ${{ github.workspace }}/app
-      - name: Zip 'app' directory into 'upload' directory
-        run: |
-          zip -r ${{ github.workspace }}/upload/lambda_function_code.zip ${{ github.workspace }}/app
-      - name: Copy 'auto-deployment.yaml' to 'upload' directory
-        run: |
-          cp ${{ github.workspace }}/aws/auto-deployment.yaml ${{ github.workspace }}/upload
       - uses: actions/setup-python@v2
         with:
           python-version: '3.x'
+      - name: Create 'upload' directory
+        run: |
+          mkdir -p upload
+      - name: Rename 'src' directory to 'app'
+        run: |
+          mv src app
+      - name: Zip 'app' directory into 'upload' directory
+        run: |
+          zip -r upload/lambda_function_code.zip app
+      - name: Copy 'auto-deployment.yaml' to 'upload' directory
+        run: |
+          cp aws/auto-deployment.yaml upload
       - name: Run python script that empty the S3 bucket and upload files to it with public-read
         run: |
           pip install boto3
-          python ${{ github.workspace }}/action/run.py
+          python action/run.py
         env:
-          GITHUB_WORKSPACE: ${{ github.workspace }}
           AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
