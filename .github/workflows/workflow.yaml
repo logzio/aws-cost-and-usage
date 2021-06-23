@@ -12,6 +12,9 @@ jobs:
       - uses: actions/setup-python@v2
         with:
           python-version: '3.x'
+      - name: Run unit tests
+        run: |
+          pytest src
       - name: Create 'upload' directory
         run: |
           mkdir -p upload
