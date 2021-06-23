@@ -16,6 +16,7 @@ jobs:
         run: |
           pip install pytest
           pip install boto3
+          pip install httpretty
           pytest tests/lambda_test.py
       - name: Create 'upload' directory
         run: |
