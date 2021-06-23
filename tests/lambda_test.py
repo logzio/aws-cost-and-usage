@@ -9,9 +9,9 @@ import os
 import src.lambda_function as worker
 import src.shipper as shipper
 import unittest
-import utils
 import yaml
 
+from . import utils
 from csv import DictReader
 from logging.config import fileConfig
 from src.shipper import BadLogsException, UnknownURL, UnauthorizedAccessException, MaxRetriesException
