@@ -17,7 +17,7 @@ jobs:
           pip install pytest
           pip install boto3
           pip install httpretty
-          pip install yaml
+          pip install pyyaml
           pytest tests/lambda_test.py
       - name: Create 'upload' directory
         run: |
