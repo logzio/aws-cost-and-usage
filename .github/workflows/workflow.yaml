@@ -12,6 +12,9 @@ jobs:
       - uses: actions/setup-python@v2
         with:
           python-version: '3.x'
+      - name: Copy 'src' directory into 'app' directory
+        run: |
+          cp -R src app
       - name: Add S3 bucket name and aws keys to tests config file
         run: |
           sed -i 's/S3_BUCKET_NAME\b/${{ secrets.AWS_S3_BUCKET_TEST }}/1' tests/config.yaml
@@ -23,16 +26,11 @@ jobs:
           pip install boto3
           pip install httpretty
           pip install pyyaml
-          pytest tests/lambda_test.py
+          pip install pytest-cov
+          pytest --cov=src tests/lambda_test.py
       - name: Create 'upload' directory
         run: |
           mkdir -p upload
-      - name: Rename 'src' directory to 'app'
-        run: |
-          mv src app
-
-          cd app
-          echo | ls -a
       - name: Zip 'app' directory into 'upload' directory
         run: |
           zip -r upload/lambda_function_code.zip app
