@@ -31,7 +31,7 @@ jobs:
       - name: Code-coverage
         run: |
           # Get code-coverage
-          code_coverage=$(tail -1 code_coverage.txt | egrep -o "[0-9]+" | tail -1)
+          code_coverage=$(tail -4 code_coverage.txt | head -1 | egrep -o "[0-9]+" | tail -1)
 
           # Print code-coverage
           echo code-coverage: $code_coverage%
