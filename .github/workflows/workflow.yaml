@@ -27,7 +27,7 @@ jobs:
           pip install httpretty
           pip install pyyaml
           pip install pytest-cov
-          pytest --cov=src tests/lambda_test.py > code_coverage.txt
+          pytest --cov=src tests/lambda_test.py | tee code_coverage.txt
       - name: Code-coverage
         run: |
           # Get code-coverage
