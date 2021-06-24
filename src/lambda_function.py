@@ -168,12 +168,6 @@ def lambda_handler(event, context):
     logzio_url = "{0}/?token={1}&type=billing".format(env_var['logzio_url'], env_var['token'])
     s3client = boto3.client('s3')
 
-    if 'aws_access_key_id' in event and 'aws_secret_access_key' in event:
-        s3client = boto3.client(
-            's3',
-            aws_access_key_id=event['aws_access_key_id'],
-            aws_secret_access_key=event['aws_secret_access_key']
-        )
     try:
         latest_csv_keys = _latest_csv_keys(s3client, env_var, event_time)
     except s3client.exceptions.NoSuchKey:
