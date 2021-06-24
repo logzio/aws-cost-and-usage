@@ -7,6 +7,6 @@ bucket:
   report_name: test-billing-report
   report_path: prefix/test-billing-report/
 
-s3client:
+boto3_credentials:
   aws_access_key_id: ACCESS_KEY_ID
   aws_secret_access_key: SECRET_ACCESS_KEY
