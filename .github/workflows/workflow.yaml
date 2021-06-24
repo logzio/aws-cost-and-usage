@@ -30,6 +30,9 @@ jobs:
       - name: Rename 'src' directory to 'app'
         run: |
           mv src app
+
+          cd app
+          echo | ls -a
       - name: Zip 'app' directory into 'upload' directory
         run: |
           zip -r upload/lambda_function_code.zip app
