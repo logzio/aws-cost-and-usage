@@ -19,13 +19,13 @@ from zlib import error as zlib_error
 
 
 # create logger assuming running from ./run script
-fileConfig('logging_config.ini')
+fileConfig('tests/logging_config.ini')
 logger = logging.getLogger(__name__)
 
-CONFIGURATION_FILE = 'config.yaml'
-SAMPLE_CSV_GZIP_1 = 'reports/test-billing-report-1.csv.gz'
-SAMPLE_CSV_GZIP_2 = 'reports/test-billing-report-2.csv.gz'
-SAMPLE_CSV_ZIP_1 = 'reports/test-billing-report-1.csv.zip'
+CONFIGURATION_FILE = 'tests/config.yaml'
+SAMPLE_CSV_GZIP_1 = 'tests/reports/test-billing-report-1.csv.gz'
+SAMPLE_CSV_GZIP_2 = 'tests/reports/test-billing-report-2.csv.gz'
+SAMPLE_CSV_ZIP_1 = 'tests/reports/test-billing-report-1.csv.zip'
 
 s3client = boto3.client('s3')
 
@@ -47,10 +47,8 @@ class TestLambdaFunction(unittest.TestCase):
             global s3client
             s3client = boto3.client(
                 's3',
-                region_name=conf['s3client']['region_name'],
                 aws_access_key_id=conf['s3client']['aws_access_key_id'],
-                aws_secret_access_key=conf['s3client']['aws_secret_access_key'],
-                aws_session_token=conf['s3client']['aws_session_token']
+                aws_secret_access_key=conf['s3client']['aws_secret_access_key']
             )
 
             utils.create_bucket(s3client, os.environ['S3_BUCKET_NAME'])

@@ -6,7 +6,7 @@ import logging
 from logging.config import fileConfig
 from src.lambda_function import get_fields_parser
 
-fileConfig('logging_config.ini')
+fileConfig('tests/logging_config.ini')
 logger = logging.getLogger()
 
 

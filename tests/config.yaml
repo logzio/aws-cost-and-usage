@@ -3,12 +3,10 @@ account:
   logzio_token: 123456789s
 
 bucket:
-  bucket_name: ''
+  bucket_name: 
   report_name: test-billing-report
   report_path: prefix/test-billing-report/
 
 s3client:
-  region_name: us-east-1
-  aws_access_key_id: ''
-  aws_secret_access_key: ''
-  aws_session_token: ''
+  aws_access_key_id:
+  aws_secret_access_key:
