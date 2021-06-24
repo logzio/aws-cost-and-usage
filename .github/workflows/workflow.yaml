@@ -12,6 +12,11 @@ jobs:
       - uses: actions/setup-python@v2
         with:
           python-version: '3.x'
+      - name: Add s3 bucket name and aws keys to tests config file
+        run: |
+          sed -i 's#s3_bucket_name#${{ secrets.AWS_S3_BUCKET_TEST }}#g' tests/config.yaml
+          sed -i 's/access_key/${{ secrets.AWS_ACCESS_KEY_ID }}/g' tests/config.yaml
+          sed -i 's/secret_access_key/${{ secrets.AWS_SECRET_ACCESS_KEY }}/g' tests/config.yaml
       - name: Run unit tests
         run: |
           pip install pytest
