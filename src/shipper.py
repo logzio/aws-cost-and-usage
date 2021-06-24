@@ -10,6 +10,8 @@ import urllib.error
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+VERSION = "1.0.0"
+
 
 class MaxRetriesException(Exception):
     pass
@@ -29,6 +31,8 @@ class UnknownURL(Exception):
 
 class LogzioShipper(object):
     MAX_BULK_SIZE_IN_BYTES = 1 * 1024 * 1024
+
+    retries_counter = 0
 
     def __init__(self, logzio_url):
         self._size = 0
@@ -63,6 +67,8 @@ class LogzioShipper(object):
             sleep_between_retries = 2
 
             for retries in range(max_retries):
+                LogzioShipper.retries_counter = retries
+
                 if retries:
                     sleep_between_retries *= 2
                     logger.info("Failure in sending logs - Trying again in {} seconds"
@@ -92,7 +98,9 @@ class LogzioShipper(object):
     def _send_to_logzio(self):
         @LogzioShipper.retry
         def do_request():
-            headers = {"Content-type": "application/json"}
+            headers = {"Content-type": "application/json",
+                       "Logzio-Shipper": "aws-cost-and-usage-auto-deployment/v{0}/{1}/0.".format(VERSION,
+                                                                                                 LogzioShipper.retries_counter)}
             request = urllib.request.Request(self._logzio_url, data=str.encode('\n'.join(self._logs)), headers=headers)
             return urllib.request.urlopen(request)
 
