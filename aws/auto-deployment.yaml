@@ -15,7 +15,7 @@ Parameters:
     Description: >-
       The name of report that you want to create. The name must be unique, is
       case sensitive and can't include spaces.
-    Default: my-report
+    Default: AWS-Billing-Logz-Report
     AllowedPattern: ^\S*$
     MinLength: 1
   ReportPrefix:
@@ -52,20 +52,21 @@ Parameters:
   LogzioURL:
     Type: String
     Description: >-
-      The Logz.io listener URL. If you are in the EU region choose
-      https://listener-eu.logz.io:8071. Otherwise, choose
-      https://listener.logz.io:8071. (You can tell which region you are in by
-      checking your login URL - app.logz.io means you are in the US, and
-      app-eu.logz.io means you are in the EU.)
+      The Logz.io listener URL fot your region. (For more details, see the regions page: 
+      https://docs.logz.io/user-guide/accounts/account-region.html)
     Default: 'https://listener.logz.io:8071'
     AllowedValues:
       - 'https://listener.logz.io:8071'
+      - 'https://listener-au.logz.io:8071'
+      - 'https://listener-ca.logz.io:8071'
       - 'https://listener-eu.logz.io:8071'
+      - 'https://listener-nl.logz.io:8071'
+      - 'https://listener-uk.logz.io:8071'
+      - 'https://listener-wa.logz.io:8071'
   LogzioToken:
     Type: String
     Description: >-
-      Your Logz.io account token. (Can be retrieved on the Settings page in the
-      Logz.io UI.)
+      Your Logz.io logs token. (Can be retrieved from the Manage Token page.)
     MinLength: 1
   LambdaMemorySize:
     Type: Number
