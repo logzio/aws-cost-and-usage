@@ -2,11 +2,16 @@ import json
 import logging
 import sys
 import time
-import urllib2
+import urllib.request
+import urllib.parse
+import urllib.error
+import gzip
 
 # set logger
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+VERSION = "1.0.0"
 
 
 class MaxRetriesException(Exception):
@@ -27,6 +32,8 @@ class UnknownURL(Exception):
 
 class LogzioShipper(object):
     MAX_BULK_SIZE_IN_BYTES = 1 * 1024 * 1024
+
+    retries_counter = 0
 
     def __init__(self, logzio_url):
         self._size = 0
@@ -60,7 +67,9 @@ class LogzioShipper(object):
             max_retries = 4
             sleep_between_retries = 2
 
-            for retries in xrange(max_retries):
+            for retries in range(max_retries):
+                LogzioShipper.retries_counter = retries
+
                 if retries:
                     sleep_between_retries *= 2
                     logger.info("Failure in sending logs - Trying again in {} seconds"
@@ -68,7 +77,7 @@ class LogzioShipper(object):
                     time.sleep(sleep_between_retries)
                 try:
                     res = func()
-                except urllib2.HTTPError as e:
+                except urllib.error.HTTPError as e:
                     status_code = e.getcode()
                     if status_code == 400:
                         raise BadLogsException(e.reason)
@@ -79,7 +88,7 @@ class LogzioShipper(object):
                     else:
                         logger.error("Unknown HTTP exception: {}".format(e))
                         continue
-                except urllib2.URLError:
+                except urllib.error.URLError:
                     raise
                 return res
 
@@ -90,9 +99,12 @@ class LogzioShipper(object):
     def _send_to_logzio(self):
         @LogzioShipper.retry
         def do_request():
-            headers = {"Content-type": "application/json"}
-            request = urllib2.Request(self._logzio_url, data='\n'.join(self._logs), headers=headers)
-            return urllib2.urlopen(request)
+            headers = {"Content-type": "application/json",
+                       "Logzio-Shipper": "aws-cost-and-usage-auto-deployment/v{0}/{1}/0.".format(VERSION,
+                                                                                                 LogzioShipper.retries_counter)}
+            compressed_data = gzip.compress(str.encode('\n'.join(self._logs)))
+            request = urllib.request.Request(self._logzio_url, data=compressed_data, headers=headers)
+            return urllib.request.urlopen(request)
 
         try:
             do_request()
@@ -102,7 +114,7 @@ class LogzioShipper(object):
             raise MaxRetriesException()
         except BadLogsException as e:
             logger.error("Got 400 code from Logz.io. This means that some of your logs are too big, "
-                         "or badly formatted. response: {0}".format(e.message))
+                         "or badly formatted. response: {0}".format(e))
             raise BadLogsException()
         except UnauthorizedAccessException:
             logger.error("You are not authorized with Logz.io! Token OK? dropping logs...")
@@ -110,6 +122,6 @@ class LogzioShipper(object):
         except UnknownURL:
             logger.error("Please check your url...")
             raise UnknownURL()
-        except urllib2.HTTPError as e:
+        except urllib.error.HTTPError as e:
             logger.error("Unexpected error while trying to send logs: {}".format(e))
             raise

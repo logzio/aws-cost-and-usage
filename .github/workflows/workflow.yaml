@@ -1,36 +1,62 @@
-# This is a basic workflow to help you get started with Actions
-
-name: CI
-
-# Controls when the action will run. 
+name: Automatic tests, code-coverage and auto-deployment files upload to S3
 on:
-  # Triggers the workflow on push or pull request events but only for the master branch
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
-
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+  push:
+    branches:
+      - master
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
+  deploy:
     runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
-
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
-
-      # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+      - name: Copy 'src' directory into 'app' directory
         run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
+          cp -R src app
+      - name: Add S3 bucket name and aws keys to tests config file
+        run: |
+          sed -i 's/S3_BUCKET_NAME\b/${{ secrets.AWS_S3_BUCKET_TEST }}/1' tests/config.yaml
+          sed -i 's/ACCESS_KEY_ID\b/${{ secrets.AWS_ACCESS_KEY_ID }}/1' tests/config.yaml
+          sed -i 's/SECRET_ACCESS_KEY\b/${{ secrets.AWS_SECRET_ACCESS_KEY }}/1' tests/config.yaml
+      - name: Run unit tests
+        run: |
+          pip install pytest
+          pip install boto3
+          pip install httpretty
+          pip install pyyaml
+          pip install pytest-cov
+          pytest --cov=src tests/lambda_test.py | tee code_coverage.txt
+      - name: Code-coverage
+        run: |
+          # Get code-coverage
+          code_coverage=$(tail -4 code_coverage.txt | head -1 | egrep -o "[0-9]+" | tail -1)
+
+          # Print code-coverage
+          echo code-coverage: $code_coverage%
+
+          # Check code-coverage condition
+          echo | awk -v num=$code_coverage '{ if (num < 80) { printf "code_coverage is less than 80%"; exit 1 } else { exit 0 }}'
+          exit_code=$?
+          if [ $exit_code -eq 1 ]; then
+            exit 1
+          fi
+      - name: Create 'upload' directory
+        run: |
+          mkdir -p upload
+      - name: Zip 'app' directory into 'upload' directory
+        run: |
+          zip -r upload/lambda_function_code.zip app
+      - name: Copy 'auto-deployment.yaml' to 'upload' directory
+        run: |
+          cp aws/auto-deployment.yaml upload
+      - name: Run python script that empty the S3 bucket and upload files in 'upload' directory to it with public-read
+        run: |
+          pip install boto3
+          python action/run.py
+        env:
+          SOURCE_DIR: upload
+          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

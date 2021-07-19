@@ -9,14 +9,13 @@ import os
 import src.lambda_function as worker
 import src.shipper as shipper
 import unittest
-import utils
 import yaml
 
+from . import utils
 from csv import DictReader
 from logging.config import fileConfig
 from src.shipper import BadLogsException, UnknownURL, UnauthorizedAccessException, MaxRetriesException
 from zlib import error as zlib_error
-
 
 # create logger assuming running from ./run script
 fileConfig('tests/logging_config.ini')
@@ -27,61 +26,41 @@ SAMPLE_CSV_GZIP_1 = 'tests/reports/test-billing-report-1.csv.gz'
 SAMPLE_CSV_GZIP_2 = 'tests/reports/test-billing-report-2.csv.gz'
 SAMPLE_CSV_ZIP_1 = 'tests/reports/test-billing-report-1.csv.zip'
 
-s3client = boto3.client('s3')
-
 
 class TestLambdaFunction(unittest.TestCase):
     """ Unit testing logzio lambda function """
 
-    def setUp(self):
+    s3client = None
+    s3res = None
+
+    @classmethod
+    def setUpClass(cls):
         with open(CONFIGURATION_FILE, 'r') as f:
-            conf = yaml.load(f)
+            conf = yaml.load(f, Loader=yaml.FullLoader)
             # Set os.environ for tests
             os.environ['REPORT_NAME'] = conf['bucket']['report_name']
             os.environ['REPORT_PATH'] = conf['bucket']['report_path']
             os.environ['S3_BUCKET_NAME'] = conf['bucket']['bucket_name']
             os.environ['TOKEN'] = conf['account']['logzio_token']
             os.environ['URL'] = conf['account']['logzio_url']
+            os.environ['AWS_ACCESS_KEY_ID'] = conf['boto3_credentials']['aws_access_key_id']
+            os.environ['AWS_SECRET_ACCESS_KEY'] = conf['boto3_credentials']['aws_secret_access_key']
 
+            TestLambdaFunction.s3client = boto3.client('s3')
+            TestLambdaFunction.s3res = boto3.resource('s3')
+
+            utils.create_bucket(TestLambdaFunction.s3client, os.environ['S3_BUCKET_NAME'])
+
+    def setUp(self):
         self._logzio_url = "{0}/?token={1}&type=billing".format(os.environ['URL'], os.environ['TOKEN'])
 
-        utils.create_bucket(s3client, os.environ['S3_BUCKET_NAME'])
-        self._bucket_policy = {
-            "Version": "2008-10-17",
-            "Id": "Policy1335892530063",
-            "Statement": [
-                {
-                    "Sid": "Stmt1335892150622",
-                    "Effect": "Allow",
-                    "Principal": {
-                        "AWS": "arn:aws:iam::386209384616:root"
-                    },
-                    "Action": [
-                        "s3:GetBucketAcl",
-                        "s3:GetBucketPolicy"
-                    ],
-                    "Resource": "arn:aws:s3:::{}".format(os.environ['S3_BUCKET_NAME'])
-                },
-                {
-                    "Sid": "Stmt1335892526596",
-                    "Effect": "Allow",
-                    "Principal": {
-                        "AWS": "arn:aws:iam::386209384616:root"
-                    },
-                    "Action": [
-                        "s3:PutObject",
-                        "s3:GetObject"
-                    ],
-                    "Resource": "arn:aws:s3:::{}/*".format(os.environ['S3_BUCKET_NAME'])
-                }
-            ]
-        }
-        utils.put_bucket_policy(s3client, os.environ['S3_BUCKET_NAME'], json.dumps(self._bucket_policy))
+        utils.empty_bucket(TestLambdaFunction.s3client, os.environ['S3_BUCKET_NAME'])
 
-    def tearDown(self):
+    @classmethod
+    def tearDownClass(cls):
         try:
-            utils.delete_bucket(s3client, os.environ['S3_BUCKET_NAME'])
-        except s3client.exceptions.NoSuchBucket:
+            utils.delete_bucket(TestLambdaFunction.s3client, os.environ['S3_BUCKET_NAME'])
+        except TestLambdaFunction.s3client.exceptions.NoSuchBucket:
             pass
 
     def test_latest_csv_file(self):
@@ -89,7 +68,7 @@ class TestLambdaFunction(unittest.TestCase):
         curr_month, prev_month = utils.get_months_range()
 
         # put empty folder
-        utils.put_object(s3client, os.environ['S3_BUCKET_NAME'],
+        utils.put_object(TestLambdaFunction.s3client, os.environ['S3_BUCKET_NAME'],
                          "{0}/{1}/".format(os.environ['REPORT_PATH'], curr_month), '')
         # put older folder with json file
         prev_json_content = {
@@ -97,7 +76,7 @@ class TestLambdaFunction(unittest.TestCase):
                 "location1"
             ]
         }
-        utils.put_object(s3client, os.environ['S3_BUCKET_NAME'],
+        utils.put_object(TestLambdaFunction.s3client, os.environ['S3_BUCKET_NAME'],
                          "{0}/{1}/{2}-Manifest.json".format(os.environ['REPORT_PATH'], prev_month,
                                                             os.environ['REPORT_NAME']), json.dumps(prev_json_content))
 
@@ -109,7 +88,7 @@ class TestLambdaFunction(unittest.TestCase):
             'report_path': os.environ['REPORT_PATH'],
             'report_name': os.environ['REPORT_NAME']
         }
-        keys = worker._latest_csv_keys(s3client, env_var, event_time)
+        keys = worker._latest_csv_keys(TestLambdaFunction.s3client, env_var, event_time)
         self.assertEqual(keys[0], "location1",
                          "Unexpected key in the json file - {0} - {1}".format(prev_month, keys[0]))
 
@@ -119,10 +98,10 @@ class TestLambdaFunction(unittest.TestCase):
                 "location2"
             ]
         }
-        utils.put_object(s3client, os.environ['S3_BUCKET_NAME'],
+        utils.put_object(TestLambdaFunction.s3client, os.environ['S3_BUCKET_NAME'],
                          "{0}/{1}/{2}-Manifest.json".format(os.environ['REPORT_PATH'], curr_month,
                                                             os.environ['REPORT_NAME']), json.dumps(curr_json_content))
-        keys = worker._latest_csv_keys(s3client, env_var, event_time)
+        keys = worker._latest_csv_keys(TestLambdaFunction.s3client, env_var, event_time)
         self.assertEqual(keys[0], "location2",
                          "Unexpected key in the json file - {0} - {1}".format(curr_month, keys[0]))
 
@@ -144,7 +123,7 @@ class TestLambdaFunction(unittest.TestCase):
             event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             ship = shipper.LogzioShipper(self._logzio_url)
             r = csv.reader(csv_lines, delimiter=',')
-            tmp_headers = r.next()
+            tmp_headers = next(r)
             headers = [header.replace('/', '_') for header in tmp_headers]
             for row in r:
                 ship.add(worker._parse_file(headers, row, event_time))
@@ -168,13 +147,14 @@ class TestLambdaFunction(unittest.TestCase):
             ]
         }
 
-        utils.put_object(s3client, os.environ['S3_BUCKET_NAME'],
+        utils.put_object(TestLambdaFunction.s3client, os.environ['S3_BUCKET_NAME'],
                          "{0}/{1}/{2}-Manifest.json".format(os.environ['REPORT_PATH'], curr_month,
                                                             os.environ['REPORT_NAME']), json.dumps(manifest_content))
         # upload two files
-        s3res = boto3.resource('s3')
-        utils.upload_gzipped(s3res, os.environ['S3_BUCKET_NAME'], manifest_content["reportKeys"][0], SAMPLE_CSV_GZIP_1)
-        utils.upload_gzipped(s3res, os.environ['S3_BUCKET_NAME'], manifest_content["reportKeys"][1], SAMPLE_CSV_GZIP_2)
+        utils.upload_gzipped(TestLambdaFunction.s3res, os.environ['S3_BUCKET_NAME'],
+                             manifest_content["reportKeys"][0], SAMPLE_CSV_GZIP_1)
+        utils.upload_gzipped(TestLambdaFunction.s3res, os.environ['S3_BUCKET_NAME'],
+                             manifest_content["reportKeys"][1], SAMPLE_CSV_GZIP_2)
 
         # user flow
         env_var = {
@@ -184,12 +164,12 @@ class TestLambdaFunction(unittest.TestCase):
             'report_path': os.environ['REPORT_PATH'],
             'report_name': os.environ['REPORT_NAME']
         }
-        latest_csv_keys = worker._latest_csv_keys(s3client, env_var, event_time)
+        latest_csv_keys = worker._latest_csv_keys(TestLambdaFunction.s3client, env_var, event_time)
         readers = []
 
         ship = shipper.LogzioShipper(self._logzio_url)
         # first csv
-        csv_like_obj1 = s3client.get_object(Bucket=env_var['bucket'], Key=latest_csv_keys[0])
+        csv_like_obj1 = TestLambdaFunction.s3client.get_object(Bucket=env_var['bucket'], Key=latest_csv_keys[0])
         gen1 = worker.CSVLineGenerator(csv_like_obj1['Body'])
         csv_lines1 = gen1.headers
         for line in gen1.stream_line():
@@ -197,7 +177,7 @@ class TestLambdaFunction(unittest.TestCase):
         readers.append(DictReader(csv_lines1.splitlines(True)))
 
         # second csv
-        csv_like_obj2 = s3client.get_object(Bucket=env_var['bucket'], Key=latest_csv_keys[1])
+        csv_like_obj2 = TestLambdaFunction.s3client.get_object(Bucket=env_var['bucket'], Key=latest_csv_keys[1])
         gen2 = worker.CSVLineGenerator(csv_like_obj2['Body'])
         csv_lines2 = gen2.headers
         for line in gen2.stream_line():
@@ -209,11 +189,11 @@ class TestLambdaFunction(unittest.TestCase):
         httpretty.enable()
 
         for line in csv_lines1.splitlines()[1:]:
-            ship.add(worker._parse_file(gen1.headers.split(','), csv.reader([line]).next(), event_time))
+            ship.add(worker._parse_file(gen1.headers.split(','), next(csv.reader([line])), event_time))
         ship.flush()
 
         for line in csv_lines2.splitlines()[1:]:
-            ship.add(worker._parse_file(gen2.headers.split(','), csv.reader([line]).next(), event_time))
+            ship.add(worker._parse_file(gen2.headers.split(','), next(csv.reader([line])), event_time))
         ship.flush()
 
         self.assertTrue(utils.verify_requests(readers, httpretty.HTTPretty.latest_requests),
@@ -231,11 +211,11 @@ class TestLambdaFunction(unittest.TestCase):
                 "{}-1.csv.zip".format(key)
             ]
         }
-        utils.put_object(s3client, os.environ['S3_BUCKET_NAME'],
+        utils.put_object(TestLambdaFunction.s3client, os.environ['S3_BUCKET_NAME'],
                          "{0}/{1}/{2}-Manifest.json".format(os.environ['REPORT_PATH'], curr_month,
                                                             os.environ['REPORT_NAME']), json.dumps(manifest_content))
-        s3res = boto3.resource('s3')
-        utils.upload_gzipped(s3res, os.environ['S3_BUCKET_NAME'], manifest_content["reportKeys"][0], SAMPLE_CSV_ZIP_1)
+        utils.upload_gzipped(TestLambdaFunction.s3res, os.environ['S3_BUCKET_NAME'], manifest_content["reportKeys"][0],
+                             SAMPLE_CSV_ZIP_1)
 
         event = {
             "detail-type": "Scheduled Event",
@@ -259,7 +239,7 @@ class TestLambdaFunction(unittest.TestCase):
                 "{}-1.csv.gz".format(key)
             ]
         }
-        utils.put_object(s3client, os.environ['S3_BUCKET_NAME'],
+        utils.put_object(TestLambdaFunction.s3client, os.environ['S3_BUCKET_NAME'],
                          "{0}/{1}/{2}-Manifest.json".format(os.environ['REPORT_PATH'], curr_month,
                                                             os.environ['REPORT_NAME']), json.dumps(manifest_content))
 
@@ -268,7 +248,7 @@ class TestLambdaFunction(unittest.TestCase):
             "source": "aws.events",
             "time": event_time
         }
-        with self.assertRaises(s3client.exceptions.NoSuchKey):
+        with self.assertRaises(TestLambdaFunction.s3client.exceptions.NoSuchKey):
             worker.lambda_handler(event, {})
 
     @httpretty.activate
@@ -280,7 +260,7 @@ class TestLambdaFunction(unittest.TestCase):
             csv_lines = f.read().decode('utf-8').splitlines(True)
             event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             r = csv.reader(csv_lines, delimiter=',')
-            tmp_headers = r.next()
+            tmp_headers = next(r)
             headers = [header.replace('/', '_') for header in tmp_headers]
             with self.assertRaises(BadLogsException):
                 for row in r:
@@ -296,7 +276,7 @@ class TestLambdaFunction(unittest.TestCase):
             csv_lines = f.read().decode('utf-8').splitlines(True)
             event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             r = csv.reader(csv_lines, delimiter=',')
-            tmp_headers = r.next()
+            tmp_headers = next(r)
             headers = [header.replace('/', '_') for header in tmp_headers]
             with self.assertRaises(UnauthorizedAccessException):
                 for row in r:
@@ -312,7 +292,7 @@ class TestLambdaFunction(unittest.TestCase):
             csv_lines = f.read().decode('utf-8').splitlines(True)
             event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             r = csv.reader(csv_lines, delimiter=',')
-            tmp_headers = r.next()
+            tmp_headers = next(r)
             headers = [header.replace('/', '_') for header in tmp_headers]
             with self.assertRaises(MaxRetriesException):
                 for row in r:
@@ -328,7 +308,7 @@ class TestLambdaFunction(unittest.TestCase):
             csv_lines = f.read().decode('utf-8').splitlines(True)
             event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             r = csv.reader(csv_lines, delimiter=',')
-            tmp_headers = r.next()
+            tmp_headers = next(r)
             headers = [header.replace('/', '_') for header in tmp_headers]
             with self.assertRaises(UnknownURL):
                 for row in r:
