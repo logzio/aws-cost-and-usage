@@ -5,6 +5,7 @@ import time
 import urllib.request
 import urllib.parse
 import urllib.error
+import gzip
 
 # set logger
 logger = logging.getLogger()
@@ -101,7 +102,8 @@ class LogzioShipper(object):
             headers = {"Content-type": "application/json",
                        "Logzio-Shipper": "aws-cost-and-usage-auto-deployment/v{0}/{1}/0.".format(VERSION,
                                                                                                  LogzioShipper.retries_counter)}
-            request = urllib.request.Request(self._logzio_url, data=str.encode('\n'.join(self._logs)), headers=headers)
+            compressed_data = gzip.compress(str.encode('\n'.join(self._logs)))
+            request = urllib.request.Request(self._logzio_url, data=compressed_data, headers=headers)
             return urllib.request.urlopen(request)
 
         try:

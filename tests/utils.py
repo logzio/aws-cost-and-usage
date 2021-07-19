@@ -1,6 +1,7 @@
 import datetime
 import dateutil.relativedelta
 import json
+import gzip
 import logging
 
 from logging.config import fileConfig
@@ -128,7 +129,7 @@ def verify_requests(csv_readers, requests):
         csvs_row_count += sum(1 for _ in reader)
 
     for request in requests:
-        for req in request.parsed_body.splitlines():
+        for req in gzip.decompress(request.parsed_body).splitlines():
             req_row_count += 1
             tested = json.loads(req)
             for key, value in tested.items():
