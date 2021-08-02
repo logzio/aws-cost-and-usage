@@ -27,17 +27,17 @@ jobs:
           pip install httpretty
           pip install pyyaml
           pip install pytest-cov
-          pytest --cov=src tests/lambda_test.py | tee code_coverage.txt
+          pytest --cov-report xml:code_coverage.xml --cov=src tests/lambda_test.py
       - name: Code-coverage
         run: |
-          # Get code-coverage
-          code_coverage=$(tail -4 code_coverage.txt | head -1 | egrep -o "[0-9]+" | tail -1)
+          # Get line-rate
+          line_rate=$(head -2 code_coverage.xml | tail -1 | egrep -o "line-rate=\"[0-1]\.?[0-9]*\"" | egrep -o "[0-1]\.?[0-9]*")
 
-          # Print code-coverage
-          echo code-coverage: $code_coverage%
+          # Print line-rate
+          echo | awk -v num=$line_rate '{ printf "line-rate: %d%\n", (num * 100) }'
 
-          # Check code-coverage condition
-          echo | awk -v num=$code_coverage '{ if (num < 80) { printf "code_coverage is less than 80%"; exit 1 } else { exit 0 }}'
+          # Check code-coverage conditions
+          echo | awk -v num=$line_rate '{ if (num < 0.8) { printf "line-rate is less than 80%"; exit 1 } else { exit 0 }}'
           exit_code=$?
           if [ $exit_code -eq 1 ]; then
             exit 1
