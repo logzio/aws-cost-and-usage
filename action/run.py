@@ -18,7 +18,7 @@ def delete_bucket_directory_files(bucket, directory):
     s3resource = boto3.resource('s3')
     bucket = s3resource.Bucket(bucket)
 
-    bucket.objects.filter(prefix=directory).delete()
+    bucket.objects.filter(Prefix=directory).delete()
 
     print("S3 bucket directory is now empty")
 
