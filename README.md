@@ -53,3 +53,7 @@ This auto-deployment will create the following resources in your AWS account:
 | AWS::Lambda::Function | logzio-aws-cost-and-usage |
 | AWS::Events::Rule | LogzioAWSCostAndUsage |
 | AWS::Lambda::Permission | - |
+
+## Searching in Logz.io
+
+All data that were sent from the lambda function will be under the type `billing` 
