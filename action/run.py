@@ -9,9 +9,11 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 LAMBDA_FUNCTION_CODE_ZIP_FILE_NAME = 'lambda_function_code.zip'
-LAMBDA_FUNCTION_CODE_ZIP_FILE_PATH = "{0}/{1}".format(os.environ['SOURCE_DIR'], LAMBDA_FUNCTION_CODE_ZIP_FILE_NAME)
+LAMBDA_FUNCTION_CODE_ZIP_FILE_LOCAL_PATH = "{0}/{1}".format(os.environ['SOURCE_DIR'], LAMBDA_FUNCTION_CODE_ZIP_FILE_NAME)
+LAMBDA_FUNCTION_CODE_ZIP_FILE_S3_PATH = "{0}/{1}".format(os.environ['FOLDER_NAME'], LAMBDA_FUNCTION_CODE_ZIP_FILE_NAME)
 AUTO_DEPLOYMENT_YAML_FILE_NAME = 'auto-deployment.yaml'
-AUTO_DEPLOYMENT_YAML_FILE_PATH = "{0}/{1}".format(os.environ['SOURCE_DIR'], AUTO_DEPLOYMENT_YAML_FILE_NAME)
+AUTO_DEPLOYMENT_YAML_FILE_LOCAL_PATH = "{0}/{1}".format(os.environ['SOURCE_DIR'], AUTO_DEPLOYMENT_YAML_FILE_NAME)
+AUTO_DEPLOYMENT_YAML_FILE_S3_PATH = "{0}/{1}".format(os.environ['FOLDER_NAME'], AUTO_DEPLOYMENT_YAML_FILE_NAME)
 
 s3client = boto3.client('s3')
 
@@ -21,10 +23,10 @@ def delete_bucket_folder_files(bucket, folder):
     bucket = s3resource.Bucket(bucket)
 
     bucket.objects.filter(Prefix=folder).delete()
-    s3client.put_object(bucket, folder)
+    s3client.put_object(Bucket=bucket, Key=(folder + '/'))
 
     print("S3 bucket directory is now empty")
-    
+
 
 def upload_to_aws(local_file, bucket, s3_file):
     try:
@@ -40,8 +42,8 @@ def upload_to_aws(local_file, bucket, s3_file):
 
 def main():
     delete_bucket_folder_files(os.environ['AWS_S3_BUCKET'], os.environ['FOLDER_NAME'])
-    upload_to_aws(LAMBDA_FUNCTION_CODE_ZIP_FILE_PATH, os.environ['AWS_S3_BUCKET'], LAMBDA_FUNCTION_CODE_ZIP_FILE_NAME)
-    upload_to_aws(AUTO_DEPLOYMENT_YAML_FILE_PATH, os.environ['AWS_S3_BUCKET'], AUTO_DEPLOYMENT_YAML_FILE_NAME)
+    upload_to_aws(LAMBDA_FUNCTION_CODE_ZIP_FILE_LOCAL_PATH, os.environ['AWS_S3_BUCKET'], LAMBDA_FUNCTION_CODE_ZIP_FILE_S3_PATH)
+    upload_to_aws(AUTO_DEPLOYMENT_YAML_FILE_LOCAL_PATH, os.environ['AWS_S3_BUCKET'], AUTO_DEPLOYMENT_YAML_FILE_S3_PATH)
 
 
 if __name__ == '__main__':
