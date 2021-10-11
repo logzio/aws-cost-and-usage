@@ -56,4 +56,4 @@ This auto-deployment will create the following resources in your AWS account:
 
 ## Searching in Logz.io
 
-All data that were sent from the lambda function will be under the type `billing` 
+All logs that were sent from the lambda function will be under the type `billing` 
