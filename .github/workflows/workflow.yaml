@@ -58,6 +58,6 @@ jobs:
         env:
           SOURCE_DIR: upload
           AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
-          DIRECTORY_NAME: ${{ secrets.DIRECTORY_NAME }}
+          DIRECTORY_NAME: ${{ secrets.FOLDER_NAME }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
