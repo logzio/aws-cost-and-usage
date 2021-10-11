@@ -14,12 +14,14 @@ AUTO_DEPLOYMENT_YAML_FILE_NAME = 'auto-deployment.yaml'
 AUTO_DEPLOYMENT_YAML_FILE_PATH = "{0}/{1}".format(os.environ['SOURCE_DIR'], AUTO_DEPLOYMENT_YAML_FILE_NAME)
 
 
-def empty_s3_bucket(bucket):
+def delete_bucket_directory_files(bucket, directory):
     s3resource = boto3.resource('s3')
     bucket = s3resource.Bucket(bucket)
 
-    bucket.objects.delete()
-    print("S3 bucket is now empty")
+    for file in bucket.list(prefix=directory):
+        file.delete()
+
+    print("S3 bucket directory is now empty")
 
 
 def upload_to_aws(local_file, bucket, s3_file):
@@ -37,7 +39,7 @@ def upload_to_aws(local_file, bucket, s3_file):
 
 
 def main():
-    empty_s3_bucket(os.environ['AWS_S3_BUCKET'])
+    delete_bucket_directory_files(os.environ['AWS_S3_BUCKET'], os.environ['DIRECTORY_NAME'])
     upload_to_aws(LAMBDA_FUNCTION_CODE_ZIP_FILE_PATH, os.environ['AWS_S3_BUCKET'], LAMBDA_FUNCTION_CODE_ZIP_FILE_NAME)
     upload_to_aws(AUTO_DEPLOYMENT_YAML_FILE_PATH, os.environ['AWS_S3_BUCKET'], AUTO_DEPLOYMENT_YAML_FILE_NAME)
 
