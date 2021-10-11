@@ -162,8 +162,8 @@ Resources:
     Type: 'AWS::Lambda::Function'
     Properties:
       Code:
-        S3Bucket: aws-cost-usage-auto-deployment
-        S3Key: lambda_function_code.zip
+        S3Bucket: logzio-aws-integrations-us-east-1
+        S3Key: aws-cost-usage-auto-deployment/lambda_function_code.zip
       FunctionName: logzio-aws-cost-and-usage
       Description: >-
         Lambda function for collecting AWS cost and usage reports and sending
