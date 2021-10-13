@@ -100,8 +100,9 @@ class LogzioShipper(object):
         @LogzioShipper.retry
         def do_request():
             headers = {"Content-type": "application/json",
+                       "Content-Encoding": "gzip",
                        "Logzio-Shipper": "aws-cost-and-usage/v{0}/{1}/0.".format(VERSION,
-                                                                                                 LogzioShipper.retries_counter)}
+                                                                                 LogzioShipper.retries_counter)}
             compressed_data = gzip.compress(str.encode('\n'.join(self._logs)))
             request = urllib.request.Request(self._logzio_url, data=compressed_data, headers=headers)
             return urllib.request.urlopen(request)
