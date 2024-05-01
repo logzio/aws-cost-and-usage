@@ -1,0 +1,36 @@
+name: Auto-deployment and Upload files to S3
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+      - name: Copy 'src' directory into 'app' directory
+        run: |
+          cp -R src app
+      - name: Create 'upload' directory
+        run: |
+          mkdir -p upload
+      - name: Zip 'app' directory into 'upload' directory
+        run: |
+          zip -r upload/lambda_function_code.zip app
+      - name: Copy 'auto-deployment.yaml' to 'upload' directory
+        run: |
+          cp aws/auto-deployment.yaml upload
+      - name: Run python script that empty the S3 bucket and upload files in 'upload' directory to it with public-read
+        run: |
+          pip install boto3
+          python action/run.py
+        env:
+          SOURCE_DIR: upload
+          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+          FOLDER_NAME: ${{ secrets.FOLDER_NAME }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
